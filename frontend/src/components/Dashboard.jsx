@@ -61,25 +61,25 @@ const mockScreeningHits = [
 const mockRecentActivity = [
   {
     type: 'approved',
-    applicant: 'Sarah Chen',
+    applicant: 'Emily Park',
     time: '2 min ago',
     reviewer: 'You'
   },
   {
     type: 'screening_hit',
-    applicant: 'Michael Roberts',
+    applicant: 'Marcus Webb',
     time: '15 min ago',
     detail: 'PEP match detected'
   },
   {
     type: 'resubmission',
-    applicant: 'James Wilson',
+    applicant: 'David Miller',
     time: '32 min ago',
     detail: 'Proof of address requested'
   },
   {
     type: 'rejected',
-    applicant: 'Unknown Entity LLC',
+    applicant: 'Apex Trading LLC',
     time: '1 hour ago',
     reviewer: 'AI Auto-reject',
     detail: 'Document forgery detected'
@@ -517,7 +517,7 @@ export default function Dashboard() {
       
       <div className="dashboard-header">
         <div>
-          <h1 className="dashboard-title">Good morning, Jasleen</h1>
+          <h1 className="dashboard-title">Good morning</h1>
           <p className="dashboard-subtitle">Here's what's happening with your compliance pipeline</p>
         </div>
         

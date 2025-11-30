@@ -28,18 +28,18 @@ import {
 const mockCases = [
   {
     id: 'CASE-2025-001',
-    title: 'Sanctions Match Investigation - Maria Garcia',
+    title: 'Sanctions Match Investigation - Sofia Reyes',
     type: 'sanctions',
     priority: 'high',
     status: 'open',
     assignee: {
-      name: 'Sarah Johnson',
-      avatar: 'SJ'
+      name: 'Review Team',
+      avatar: 'RT'
     },
     subject: {
       type: 'individual',
-      name: 'Maria Garcia',
-      id: '69265783fc570e564756417f'
+      name: 'Sofia Reyes',
+      id: '1e7b2a36f5c489d1e3a6b528'
     },
     createdAt: '2025-11-28T08:20:00Z',
     dueAt: '2025-11-29T17:00:00Z',
@@ -50,18 +50,18 @@ const mockCases = [
   },
   {
     id: 'CASE-2025-002',
-    title: 'Document Verification Failure - Ahmed Hassan',
+    title: 'Document Verification Failure - Omar Khalil',
     type: 'verification',
     priority: 'medium',
     status: 'in_progress',
     assignee: {
-      name: 'Mike Chen',
-      avatar: 'MC'
+      name: 'Review Team',
+      avatar: 'RT'
     },
     subject: {
       type: 'individual',
-      name: 'Ahmed Hassan',
-      id: '69265783fc570e564756418a'
+      name: 'Omar Khalil',
+      id: '2f8c3b47a6d590e2f4b7c639'
     },
     createdAt: '2025-11-28T10:25:00Z',
     dueAt: '2025-11-30T17:00:00Z',
@@ -72,18 +72,18 @@ const mockCases = [
   },
   {
     id: 'CASE-2024-089',
-    title: 'PEP Review - Jarryd Peters',
+    title: 'PEP Review - Nathan Brooks',
     type: 'pep',
     priority: 'medium',
     status: 'resolved',
     assignee: {
-      name: 'Sarah Johnson',
-      avatar: 'SJ'
+      name: 'Review Team',
+      avatar: 'RT'
     },
     subject: {
       type: 'individual',
-      name: 'Jarryd Peters',
-      id: '68a37b69f046cb214d070511'
+      name: 'Nathan Brooks',
+      id: '9c5f0e14d3a267b9c1e4f306'
     },
     createdAt: '2023-10-20T16:39:00Z',
     dueAt: '2023-10-21T17:00:00Z',
@@ -96,7 +96,7 @@ const mockCases = [
   },
   {
     id: 'CASE-2024-088',
-    title: 'Fraud Detection - Smith Andrew',
+    title: 'Fraud Detection - Derek Collins',
     type: 'fraud',
     priority: 'critical',
     status: 'resolved',
@@ -106,8 +106,8 @@ const mockCases = [
     },
     subject: {
       type: 'individual',
-      name: 'Smith Andrew',
-      id: '68a37b70f046cb214d070587'
+      name: 'Derek Collins',
+      id: '0d6a1f25e4b378c0d2f5a417'
     },
     createdAt: '2023-10-20T16:08:11Z',
     dueAt: '2023-10-20T17:00:00Z',
@@ -890,8 +890,8 @@ export default function CaseManagement() {
                   <div className="section-title">Notes ({selectedCase.notes})</div>
                   <div className="note-item">
                     <div className="note-header">
-                      <div className="assignee-avatar" style={{ width: 24, height: 24, fontSize: 10 }}>SJ</div>
-                      <span className="note-author">Sarah Johnson</span>
+                      <div className="assignee-avatar" style={{ width: 24, height: 24, fontSize: 10 }}>RT</div>
+                      <span className="note-author">Review Team</span>
                       <span className="note-time">2 hours ago</span>
                     </div>
                     <div className="note-text">

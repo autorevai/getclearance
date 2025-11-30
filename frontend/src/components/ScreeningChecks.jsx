@@ -28,7 +28,7 @@ const mockChecks = [
     id: 'chk-001',
     entity: {
       type: 'individual',
-      name: 'Maria Garcia',
+      name: 'Sofia Reyes',
       country: 'Mexico',
       countryCode: 'MX'
     },
@@ -42,7 +42,7 @@ const mockChecks = [
         listVersion: 'OFAC-2025-11-27',
         confidence: 85,
         matchedFields: ['name', 'country'],
-        details: 'Potential name match with Maria Elena Garcia on OFAC SDN list'
+        details: 'Potential name match with S. Reyes on OFAC SDN list'
       },
       {
         source: 'EU Sanctions',
@@ -57,7 +57,7 @@ const mockChecks = [
     id: 'chk-002',
     entity: {
       type: 'individual',
-      name: 'John Mock-Doe',
+      name: 'Emily Parker',
       country: 'United States',
       countryCode: 'US'
     },
@@ -71,7 +71,7 @@ const mockChecks = [
     id: 'chk-003',
     entity: {
       type: 'company',
-      name: 'Acme Corp',
+      name: 'Sterling Holdings',
       country: 'South Africa',
       countryCode: 'ZA'
     },
@@ -85,7 +85,7 @@ const mockChecks = [
     id: 'chk-004',
     entity: {
       type: 'individual',
-      name: 'Jarryd Peters',
+      name: 'Nathan Brooks',
       country: 'South Africa',
       countryCode: 'ZA'
     },
@@ -105,7 +105,7 @@ const mockChecks = [
     resolution: {
       status: 'cleared',
       reason: 'Indirect PEP relationship, low financial crime risk',
-      reviewer: 'Sarah Johnson',
+      reviewer: 'Review Team',
       resolvedAt: '2023-10-20T16:39:20Z'
     }
   },
@@ -113,7 +113,7 @@ const mockChecks = [
     id: 'chk-005',
     entity: {
       type: 'individual',
-      name: 'Smith Andrew',
+      name: 'Derek Collins',
       country: 'United States',
       countryCode: 'US'
     },

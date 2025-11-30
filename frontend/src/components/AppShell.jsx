@@ -540,9 +540,9 @@ export default function AppShell({ children, currentPage, onNavigate }) {
             </button>
             
             <div className="user-menu">
-              <div className="user-avatar">JB</div>
+              <div className="user-avatar">CD</div>
               <div className="user-info">
-                <span className="user-name">Jasleen Bains</span>
+                <span className="user-name">Chris D.</span>
                 <span className="user-role">Admin</span>
               </div>
               <ChevronDown size={16} />
@@ -578,8 +578,8 @@ export default function AppShell({ children, currentPage, onNavigate }) {
           <div className="ai-suggestion">
             <div className="ai-suggestion-label">Risk Alert</div>
             <div className="ai-suggestion-text">
-              Detected potential sanctions match for "John Mock-Doe" against OFAC SDN list 
-              (version 2025-11-27). Confidence: 87%. Review recommended.
+              Detected potential sanctions match for "Sofia Reyes" against OFAC SDN list
+              (version 2025-11-27). Confidence: 85%. Review recommended.
             </div>
           </div>
         </div>

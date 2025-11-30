@@ -25,12 +25,12 @@ import {
 
 const mockApplicants = [
   {
-    id: '69265783fc570e564756416e',
-    name: 'John Mock-Doe',
-    email: 'john.mockdoe@email.com',
+    id: '7a3f8c92d1e045b7a9c2f184',
+    name: 'Emily Parker',
+    email: 'emily.parker@techcorp.io',
     country: 'United States',
     countryCode: 'US',
-    company: 'TechStart Inc.',
+    company: 'Nova Digital Inc.',
     workflow: 'id-and-liveness',
     workflowVersion: 'v2.1',
     steps: [
@@ -39,7 +39,7 @@ const mockApplicants = [
     ],
     reviewStatus: 'approved',
     flags: [],
-    riskScore: 12,
+    riskScore: 14,
     riskBucket: 'low',
     submittedAt: '2025-11-25T13:28:32Z',
     reviewedAt: '2025-11-25T13:28:33Z',
@@ -50,9 +50,9 @@ const mockApplicants = [
     aiSummary: 'Clean application. All documents verified. No screening hits.'
   },
   {
-    id: '69264dd6077ffd4c31a387ce',
-    name: 'John Mock-Doe',
-    email: 'john.mockdoe2@email.com',
+    id: '8b4e9d03c2f156a8b0d3e295',
+    name: 'Marcus Thompson',
+    email: 'marcus.t@venture.co',
     country: 'United States',
     countryCode: 'US',
     company: null,
@@ -64,7 +64,7 @@ const mockApplicants = [
     ],
     reviewStatus: 'approved',
     flags: [],
-    riskScore: 18,
+    riskScore: 21,
     riskBucket: 'low',
     submittedAt: '2025-11-25T19:49:05Z',
     reviewedAt: '2025-11-25T19:49:05Z',
@@ -75,12 +75,12 @@ const mockApplicants = [
     aiSummary: 'Clean application. All documents verified. No screening hits.'
   },
   {
-    id: '68a37b69f046cb214d070511',
-    name: 'Jarryd Peters',
-    email: 'jarryd.peters@company.za',
+    id: '9c5f0e14d3a267b9c1e4f306',
+    name: 'Nathan Brooks',
+    email: 'n.brooks@globalfin.za',
     country: 'South Africa',
     countryCode: 'ZA',
-    company: 'Acme Corp',
+    company: 'Sterling Holdings',
     workflow: 'id-and-liveness',
     workflowVersion: 'v2.0',
     steps: [
@@ -89,7 +89,7 @@ const mockApplicants = [
     ],
     reviewStatus: 'approved',
     flags: ['pep'],
-    riskScore: 45,
+    riskScore: 48,
     riskBucket: 'medium',
     submittedAt: '2023-10-20T16:39:24Z',
     reviewedAt: '2023-10-20T16:39:24Z',
@@ -100,9 +100,9 @@ const mockApplicants = [
     aiSummary: 'PEP match detected (Tier 2). Manually reviewed and cleared.'
   },
   {
-    id: '68a37b70f046cb214d070587',
-    name: 'Smith Andrew',
-    email: 'smith.andrew@suspicious.net',
+    id: '0d6a1f25e4b378c0d2f5a417',
+    name: 'Derek Collins',
+    email: 'd.collins@tempmail.net',
     country: 'United States',
     countryCode: 'US',
     company: null,
@@ -114,7 +114,7 @@ const mockApplicants = [
     ],
     reviewStatus: 'rejected',
     flags: ['forgery'],
-    riskScore: 92,
+    riskScore: 89,
     riskBucket: 'high',
     submittedAt: '2023-10-20T16:08:11Z',
     reviewedAt: '2023-10-20T16:08:11Z',
@@ -126,12 +126,12 @@ const mockApplicants = [
     tag: 'Forgery'
   },
   {
-    id: '69265783fc570e564756417f',
-    name: 'Maria Garcia',
-    email: 'maria.garcia@company.mx',
+    id: '1e7b2a36f5c489d1e3a6b528',
+    name: 'Sofia Reyes',
+    email: 'sofia.r@latamfinance.mx',
     country: 'Mexico',
     countryCode: 'MX',
-    company: 'FinServe SA',
+    company: 'Aztec Ventures SA',
     workflow: 'enhanced-kyc',
     workflowVersion: 'v3.0',
     steps: [
@@ -142,7 +142,7 @@ const mockApplicants = [
     ],
     reviewStatus: 'in_progress',
     flags: ['sanctions'],
-    riskScore: 78,
+    riskScore: 76,
     riskBucket: 'high',
     submittedAt: '2025-11-28T08:15:00Z',
     reviewedAt: null,
@@ -153,12 +153,12 @@ const mockApplicants = [
     aiSummary: 'Potential sanctions match against OFAC SDN (85% confidence). Awaiting additional documentation for EDD.'
   },
   {
-    id: '69265783fc570e564756418a',
-    name: 'Ahmed Hassan',
-    email: 'a.hassan@techfirm.ae',
+    id: '2f8c3b47a6d590e2f4b7c639',
+    name: 'Omar Khalil',
+    email: 'o.khalil@gulftech.ae',
     country: 'United Arab Emirates',
     countryCode: 'AE',
-    company: 'Tech Innovations FZ-LLC',
+    company: 'Gulf Innovations FZ-LLC',
     workflow: 'id-and-liveness',
     workflowVersion: 'v2.1',
     steps: [
@@ -167,7 +167,7 @@ const mockApplicants = [
     ],
     reviewStatus: 'review',
     flags: [],
-    riskScore: 35,
+    riskScore: 38,
     riskBucket: 'medium',
     submittedAt: '2025-11-28T10:22:00Z',
     reviewedAt: null,

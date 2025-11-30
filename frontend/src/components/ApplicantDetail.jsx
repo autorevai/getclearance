@@ -42,17 +42,17 @@ const tabs = [
 ];
 
 const mockApplicant = {
-  id: '68a37b69f046cb214d070511',
-  name: 'Jarryd Peters',
-  email: 'jarryd.peters@company.za',
-  phone: '+27 82 555 1234',
-  dateOfBirth: '1988-03-15',
+  id: '9c5f0e14d3a267b9c1e4f306',
+  name: 'Nathan Brooks',
+  email: 'n.brooks@globalfin.za',
+  phone: '+27 21 555 7890',
+  dateOfBirth: '1985-07-22',
   nationality: 'South African',
   country: 'South Africa',
   countryCode: 'ZA',
-  address: '123 Main Street, Cape Town, 8001',
+  address: '45 Waterfront Drive, Cape Town, 8002',
   company: {
-    name: 'Acme Corp',
+    name: 'Sterling Holdings',
     role: 'Chief Financial Officer'
   },
   workflow: 'id-and-liveness',
@@ -147,15 +147,15 @@ const mockApplicant = {
     }
   },
   activity: [
-    { timestamp: '2023-10-20T16:39:24Z', event: 'Application approved', actor: 'Sarah Johnson', type: 'decision' },
-    { timestamp: '2023-10-20T16:39:20Z', event: 'PEP hit manually reviewed and cleared', actor: 'Sarah Johnson', type: 'review' },
+    { timestamp: '2023-10-20T16:39:24Z', event: 'Application approved', actor: 'Review Team', type: 'decision' },
+    { timestamp: '2023-10-20T16:39:20Z', event: 'PEP hit manually reviewed and cleared', actor: 'Review Team', type: 'review' },
     { timestamp: '2023-10-20T16:39:00Z', event: 'Screening completed - PEP hit detected', actor: 'System', type: 'screening' },
     { timestamp: '2023-10-20T16:38:00Z', event: 'Liveness check passed (94.2% match)', actor: 'System', type: 'verification' },
     { timestamp: '2023-10-20T16:35:00Z', event: 'ID document verified', actor: 'System', type: 'verification' },
     { timestamp: '2023-10-20T16:30:00Z', event: 'Application submitted', actor: 'Applicant', type: 'submission' },
   ],
   aiSnapshot: {
-    summary: `This applicant is a 35-year-old South African national working as CFO at Acme Corp. The application was flagged due to a **Tier 2 PEP match** - the applicant's spouse holds a position in South African parliament.
+    summary: `This applicant is a 38-year-old South African national working as CFO at Sterling Holdings. The application was flagged due to a **Tier 2 PEP match** - the applicant's spouse holds a position in South African parliament.
 
 **Key Observations:**
 - All identity documents verified successfully with high confidence (98.5% OCR, 94.2% face match)
