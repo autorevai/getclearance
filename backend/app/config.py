@@ -41,7 +41,7 @@ class Settings(BaseSettings):
 
     # CORS - comma-separated origins
     cors_origins: str = Field(
-        default="http://localhost:3000,http://localhost:6000,https://getclearance.vercel.app"
+        default="http://localhost:3000,http://localhost:9000,https://getclearance.vercel.app"
     )
 
     @property

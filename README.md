@@ -12,7 +12,7 @@ npm install
 npm start
 ```
 
-Open http://localhost:6000
+Open http://localhost:9000
 
 ### Full Stack (with Backend)
 
@@ -20,7 +20,7 @@ Open http://localhost:6000
 # Start all services
 docker-compose up -d
 
-# Frontend: http://localhost:6000
+# Frontend: http://localhost:9000
 # API: http://localhost:8000
 # API Docs: http://localhost:8000/docs
 ```

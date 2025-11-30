@@ -26,7 +26,7 @@ services:
       - ENVIRONMENT=development
       - DEBUG=true
       - LOG_LEVEL=DEBUG
-      - CORS_ORIGINS=http://localhost:3000,http://localhost:6000
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:9000
     volumes:
       - ./backend:/app:cached
     depends_on:

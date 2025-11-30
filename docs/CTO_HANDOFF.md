@@ -52,13 +52,13 @@ uvicorn app.main:app --reload --port 8000
 # Frontend setup (separate terminal)
 cd ../frontend
 npm install
-npm start  # Runs on port 6000
+npm start  # Runs on port 9000
 ```
 
 **Verify Setup:**
 - API Health: http://localhost:8000/health
 - API Docs: http://localhost:8000/docs
-- Frontend: http://localhost:6000
+- Frontend: http://localhost:9000
 
 ---
 
