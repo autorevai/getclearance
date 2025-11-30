@@ -48,11 +48,12 @@ Build the FastAPI backend in the `backend/` folder following this priority order
    - Alembic migrations
    - Connection pooling
 
-3. **Authentication (Clerk)**
-   - Integrate Clerk for auth (or Auth0 as alternative)
+3. **Authentication (Auth0)**
+   - Integrate Auth0 for authentication
    - Protect API routes with JWT validation
-   - Extract tenant_id from token
+   - Extract tenant_id from token claims
    - Set up row-level security pattern
+   - Configure Auth0 tenant with custom claims for tenant_id and role
 
 ### Week 2: Core APIs
 
@@ -147,7 +148,10 @@ R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
 R2_BUCKET=getclearance-docs
 R2_ENDPOINT=https://...
-CLERK_SECRET_KEY=sk_test_...
+AUTH0_DOMAIN=your-tenant.auth0.com
+AUTH0_CLIENT_ID=...
+AUTH0_CLIENT_SECRET=...
+AUTH0_AUDIENCE=https://api.getclearance.com
 OPENSANCTIONS_API_KEY=...
 ```
 
