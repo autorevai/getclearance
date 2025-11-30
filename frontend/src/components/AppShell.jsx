@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { 
-  LayoutDashboard, 
-  Users, 
-  Building2, 
-  Shield, 
-  FolderKanban, 
-  Plug, 
+import {
+  LayoutDashboard,
+  Users,
+  Building2,
+  Shield,
+  FolderKanban,
+  Plug,
   Fingerprint,
   Network,
   BarChart3,
@@ -13,6 +13,8 @@ import {
   CreditCard,
   ScrollText,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Search,
   Bell,
   Sparkles,
@@ -109,6 +111,30 @@ export default function AppShell({ children, currentPage, onNavigate }) {
           display: flex;
           align-items: center;
           gap: 12px;
+        }
+
+        .collapse-btn {
+          position: absolute;
+          right: -12px;
+          top: 72px;
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-color);
+          color: var(--text-secondary);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 110;
+          transition: all 0.15s;
+        }
+
+        .collapse-btn:hover {
+          background: var(--bg-hover);
+          color: var(--text-primary);
+          border-color: var(--accent-primary);
         }
         
         .logo {
@@ -481,9 +507,12 @@ export default function AppShell({ children, currentPage, onNavigate }) {
       `}</style>
       
       <nav className="sidebar">
+        <button className="collapse-btn" onClick={() => setCollapsed(!collapsed)}>
+          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
         <div className="sidebar-header">
           <div className="logo">GC</div>
-          <span className="brand-name">Get Clearance</span>
+          {!collapsed && <span className="brand-name">Get Clearance</span>}
         </div>
         
         <div className="nav-section">
@@ -495,11 +524,12 @@ export default function AppShell({ children, currentPage, onNavigate }) {
                 key={item.id}
                 className={`nav-item ${currentPage === item.id ? 'active' : ''}`}
                 onClick={() => onNavigate?.(item.id)}
+                title={collapsed ? item.label : ''}
               >
                 <item.icon className="nav-icon" />
-                <span className="nav-label">{item.label}</span>
-                {item.badge && <span className="nav-badge">{item.badge}</span>}
-                {item.beta && <span className="nav-beta">Beta</span>}
+                {!collapsed && <span className="nav-label">{item.label}</span>}
+                {!collapsed && item.badge && <span className="nav-badge">{item.badge}</span>}
+                {!collapsed && item.beta && <span className="nav-beta">Beta</span>}
               </div>
             )
           ))}

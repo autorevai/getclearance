@@ -107,6 +107,13 @@ const mockAIInsights = [
   }
 ];
 
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+};
+
 export default function Dashboard() {
   const [dateRange, setDateRange] = useState('today');
 
@@ -517,7 +524,7 @@ export default function Dashboard() {
       
       <div className="dashboard-header">
         <div>
-          <h1 className="dashboard-title">Good morning</h1>
+          <h1 className="dashboard-title">{getGreeting()}</h1>
           <p className="dashboard-subtitle">Here's what's happening with your compliance pipeline</p>
         </div>
         
