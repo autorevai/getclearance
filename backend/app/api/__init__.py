@@ -1,0 +1,3 @@
+"""
+Get Clearance - API Module
+"""
