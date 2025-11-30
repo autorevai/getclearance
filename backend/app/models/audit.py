@@ -66,8 +66,8 @@ class AuditLog(Base):
     # Change details
     old_values: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     new_values: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-    # metadata: Additional context (e.g., reason, triggered_by, etc.)
+    extra_data: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    # extra_data: Additional context (e.g., reason, triggered_by, etc.)
     
     # Integrity (chain hash)
     checksum: Mapped[str] = mapped_column(String(64), nullable=False)

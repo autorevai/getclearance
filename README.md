@@ -17,13 +17,18 @@ Open http://localhost:9000
 ### Full Stack (with Backend)
 
 ```bash
-# Start all services
+# 1. For Docker Compose, copy .env.local to .env (or use --env-file .env.local)
+cp .env.local .env
+
+# 2. Start all services
 docker-compose up -d
 
 # Frontend: http://localhost:9000
 # API: http://localhost:8000
 # API Docs: http://localhost:8000/docs
 ```
+
+**Security Note**: This Docker setup follows security best practices. See [Docker Security Documentation](./docs/DOCKER_SECURITY.md) for details.
 
 ## Project Structure
 
@@ -110,24 +115,17 @@ getclearance/
 
 ### Environment Variables
 
-Create `.env` in root:
+**Important**:
+- Never commit `.env.local` or `.env` files to version control
+- Use strong, unique passwords for production
+- For Docker Compose: copy `.env.local` to `.env` or use `docker-compose --env-file .env.local up`
 
-```env
-# Database
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/getclearance
-
-# Redis
-REDIS_URL=redis://localhost:6379
-
-# Claude API
-ANTHROPIC_API_KEY=your-key-here
-
-# Document Storage (Cloudflare R2)
-R2_ACCESS_KEY_ID=your-key
-R2_SECRET_ACCESS_KEY=your-secret
-R2_BUCKET=getclearance-docs
-R2_ENDPOINT=https://your-account.r2.cloudflarestorage.com
-```
+Key variables:
+- `POSTGRES_PASSWORD` - Database password (required)
+- `REDIS_PASSWORD` - Redis password (optional for dev, required for prod)
+- `MINIO_ROOT_PASSWORD` - MinIO password (required)
+- `ANTHROPIC_API_KEY` - Claude API key
+- `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` - Cloudflare R2 credentials
 
 ### Running Tests
 

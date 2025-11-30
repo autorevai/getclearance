@@ -1,15 +1,14 @@
 """
 Alembic Migration Environment
 =============================
-Configures Alembic to work with our async SQLAlchemy setup.
+Configures Alembic to work with SQLAlchemy.
+Uses sync driver (psycopg2) for migrations.
 """
 
-import asyncio
 from logging.config import fileConfig
 
-from sqlalchemy import pool
+from sqlalchemy import pool, create_engine
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
@@ -20,7 +19,7 @@ from app.config import settings
 # Alembic Config object
 config = context.config
 
-# Set database URL from settings
+# Set database URL from settings (sync version for migrations)
 config.set_main_option("sqlalchemy.url", settings.database_url_sync)
 
 # Interpret the config file for Python logging
@@ -53,44 +52,29 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def do_run_migrations(connection: Connection) -> None:
-    """Run migrations with connection."""
-    context.configure(
-        connection=connection,
-        target_metadata=target_metadata,
-        compare_type=True,
-        compare_server_default=True,
-    )
-
-    with context.begin_transaction():
-        context.run_migrations()
-
-
-async def run_async_migrations() -> None:
-    """
-    Run migrations in async mode.
-    
-    Creates an async engine and runs migrations within a connection.
-    """
-    connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
-
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
-
-    await connectable.dispose()
-
-
 def run_migrations_online() -> None:
     """
     Run migrations in 'online' mode.
-    
-    Uses asyncio to run async migrations.
+
+    Creates a sync engine and runs migrations within a connection.
     """
-    asyncio.run(run_async_migrations())
+    connectable = create_engine(
+        config.get_main_option("sqlalchemy.url"),
+        poolclass=pool.NullPool,
+    )
+
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+            compare_server_default=True,
+        )
+
+        with context.begin_transaction():
+            context.run_migrations()
+
+    connectable.dispose()
 
 
 if context.is_offline_mode():

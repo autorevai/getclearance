@@ -63,9 +63,20 @@ class Settings(BaseSettings):
     db_pool_recycle: int = Field(default=1800, ge=60)  # 30 minutes
 
     @property
+    def database_url_async(self) -> str:
+        """Get async database URL with asyncpg driver."""
+        url = str(self.database_url)
+        # Ensure asyncpg driver is used
+        if "+asyncpg" not in url:
+            url = url.replace("postgresql://", "postgresql+asyncpg://")
+        return url
+
+    @property
     def database_url_sync(self) -> str:
         """Get sync database URL for Alembic migrations."""
-        return str(self.database_url).replace("+asyncpg", "")
+        url = str(self.database_url)
+        # Remove async driver for sync operations
+        return url.replace("+asyncpg", "")
 
     # ===========================================
     # REDIS (Cache + Queue)

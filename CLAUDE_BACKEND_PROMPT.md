@@ -26,7 +26,6 @@ You are building the backend for **Get Clearance**, an AI-native KYC/AML complia
   - `backend/init.sql` - Database schema reference
   - `docs/ARCHITECTURE.md` - Full system design with database schema
   - `docs/HANDOVER.md` - Project overview and build order
-  - `.env.example` - Required environment variables
 
 ---
 
@@ -139,7 +138,7 @@ backend/
 └── requirements.txt
 ```
 
-### Environment Variables (from .env.example)
+### Environment Variables
 ```
 DATABASE_URL=postgresql://...
 REDIS_URL=redis://...

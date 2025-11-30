@@ -16,8 +16,7 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # 4. Set up environment
-cp .env.example .env
-# Edit .env with your values
+# Edit .env.local with your values
 
 # 5. Start infrastructure
 docker-compose up -d db redis
@@ -76,7 +75,7 @@ backend/
 ├── Dockerfile
 ├── requirements.txt
 ├── alembic.ini
-└── .env.example
+└── .env.local
 ```
 
 ## API Endpoints
@@ -180,7 +179,7 @@ docker-compose down -v
 
 ## Environment Variables
 
-See `.env.example` for full list. Key variables:
+Key variables:
 
 | Variable | Description | Default |
 |----------|-------------|---------|

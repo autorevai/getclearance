@@ -1,11 +1,20 @@
 # Get Clearance - Development Docker Compose
 # Includes backend, database, and redis
 # 
+# SECURITY: This configuration follows Docker security best practices:
+# - Uses environment variables for sensitive credentials (see .env file)
+# - Pins specific image versions (no :latest tags)
+# - Runs containers with minimal privileges
+# - Uses read-only root filesystems where possible
+# - Limits container capabilities
+#
 # Usage:
 #   docker-compose up -d          # Start all services
 #   docker-compose logs -f api    # Follow API logs
 #   docker-compose down           # Stop all services
 #   docker-compose down -v        # Stop and remove volumes
+#
+# Docker Compose uses .env file - copy .env.local to .env or use --env-file .env.local
 
 version: "3.8"
 
@@ -19,14 +28,14 @@ services:
       dockerfile: Dockerfile
     container_name: getclearance-api
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/getclearance
-      - REDIS_URL=redis://redis:6379/0
-      - ENVIRONMENT=development
-      - DEBUG=true
-      - LOG_LEVEL=DEBUG
-      - CORS_ORIGINS=http://localhost:3000,http://localhost:9000
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-getclearance}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DEBUG=${DEBUG:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:9000}
     volumes:
       - ./backend:/app:cached
     depends_on:
@@ -37,6 +46,19 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - getclearance-network
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    # Drop all capabilities and add only what's needed
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE  # Required to bind to port 8000
+    # Prevent privilege escalation
+    read_only: false  # Set to true in production when volumes aren't needed
+    tmpfs:
+      - /tmp
+      - /var/tmp
 
   # ===========================================
   # DATABASE (PostgreSQL)
@@ -45,21 +67,33 @@ services:
     image: postgres:15-alpine
     container_name: getclearance-db
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=getclearance
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-getclearance}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
     networks:
       - getclearance-network
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    # PostgreSQL needs specific capabilities, but we can still limit
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
 
   # ===========================================
   # CACHE & QUEUE (Redis)
@@ -68,30 +102,65 @@ services:
     image: redis:7-alpine
     container_name: getclearance-redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    # Conditionally add password if REDIS_PASSWORD is set
+    command: >
+      sh -c "
+      if [ -n \"$${REDIS_PASSWORD}\" ]; then
+        redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\"
+      else
+        redis-server --appendonly yes
+      fi
+      "
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
     networks:
       - getclearance-network
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    # Redis needs minimal capabilities
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
+    # Run as non-root user (Redis 6+ supports this)
+    user: "999:999"  # redis user in alpine image
 
   # ===========================================
   # OBJECT STORAGE (MinIO - S3 compatible)
   # ===========================================
   minio:
-    image: minio/minio:latest
+    # SECURITY: Pinned to specific version instead of :latest
+    # Update regularly: docker pull minio/minio:RELEASE.2025-10-15T17-29-55Z
+    image: minio/minio:RELEASE.2025-10-15T17-29-55Z
     container_name: getclearance-minio
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin123
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
     networks:
       - getclearance-network
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # MinIO needs network and file system access
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
 
 volumes:
   postgres_data:

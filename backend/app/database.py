@@ -61,7 +61,7 @@ async def create_db_pool() -> None:
     global _engine, _session_factory
     
     _engine = create_async_engine(
-        str(settings.database_url),
+        settings.database_url_async,
         echo=settings.debug,  # Log SQL in debug mode
         pool_size=settings.db_pool_size,
         max_overflow=settings.db_max_overflow,
