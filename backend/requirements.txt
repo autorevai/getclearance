@@ -18,6 +18,7 @@ asyncpg==0.30.0           # Async PostgreSQL driver
 psycopg2-binary==2.9.10   # Sync driver for Alembic migrations
 alembic==1.14.0           # Migrations
 greenlet==3.1.1           # Required by SQLAlchemy async
+aiosqlite==0.20.0         # Async SQLite (for testing)
 
 # ===========================================
 # AUTH (Auth0)
