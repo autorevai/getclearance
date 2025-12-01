@@ -537,7 +537,6 @@ class TestScreeningWithWebhooks:
 # HIT RESOLUTION FLOW
 # ===========================================
 
-@pytest.mark.skip(reason="Requires PostgreSQL (models use JSONB/ARRAY types)")
 class TestHitResolutionFlow:
     """Test screening hit resolution workflow."""
 
@@ -685,7 +684,6 @@ class TestHitResolutionFlow:
 # LIST VERSION TRACKING
 # ===========================================
 
-@pytest.mark.skip(reason="Requires PostgreSQL (models use JSONB/ARRAY types)")
 class TestListVersionTracking:
     """Test screening list version tracking for audits."""
 

@@ -15,9 +15,6 @@ types (JSONB, ARRAY). They are skipped when running with SQLite.
 """
 
 import pytest
-
-# Skip all tests in this module - requires PostgreSQL
-pytestmark = pytest.mark.skip(reason="Requires PostgreSQL (models use JSONB/ARRAY types)")
 from datetime import date, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4, UUID
@@ -174,7 +171,7 @@ class TestDocumentUploadFlow:
 
         assert doc.type == "passport"
         assert doc.status == "pending"
-        assert "passport.jpg" in doc.storage_key
+        assert "passport.jpg" in doc.storage_path
 
     @pytest.mark.asyncio
     async def test_document_verification_updates_status(self, db_with_data):

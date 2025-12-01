@@ -1,6 +1,6 @@
 # Complete Folder Structure - Current vs Future State
 **Project:** GetClearance / SignalWeave
-**Last Updated:** December 1, 2025 (Post Sprint 2)
+**Last Updated:** December 1, 2025 (Post Frontend Sprint 2 + Implementation Audit)
 
 ---
 
@@ -8,14 +8,16 @@
 - ✅ = File exists and is complete
 - ⏳ = File exists but needs updates/integration
 - ❌ = File does not exist, needs to be created
+- 🔒 = Production hardening (from 10_PRODUCTION_HARDENING_PROMPTS.md)
 - 📁 = Directory
 
 ---
 
 ## Reality Check
 
-**Backend:** 100% complete, production-ready, deployed
+**Backend:** Core features complete, needs production hardening (see Implementation Audit)
 **Frontend:** UI prototype with Auth + API layer complete - Sprint 1 & 2 done, components still using mock data
+**Production Hardening:** 5 additional sprints identified (15-23 days) - see docs/IMPLEMENTATION_AUDIT.md
 
 ---
 
@@ -94,6 +96,8 @@ getclearance/
 │   │   ├── config.py                         ✅ DONE - Settings from .env
 │   │   ├── database.py                       ✅ DONE - Async SQLAlchemy
 │   │   ├── dependencies.py                   ✅ DONE - Auth, tenant context
+│   │   ├── logging_config.py                 🔒 Sprint 4 - Structured JSON logging
+│   │   └── metrics.py                        🔒 Sprint 4 - Prometheus metrics setup
 │   │   │
 │   │   ├── 📁 api/
 │   │   │   ├── __init__.py                   ✅ DONE
@@ -104,7 +108,10 @@ getclearance/
 │   │   │       ├── documents.py              ✅ DONE - Upload/download/analyze
 │   │   │       ├── screening.py              ✅ DONE - AML screening + hits
 │   │   │       ├── cases.py                  ✅ DONE - Case management
-│   │   │       └── ai.py                     ✅ DONE - AI endpoints
+│   │   │       ├── ai.py                     ✅ DONE - AI endpoints
+│   │   │       ├── api_keys.py               🔒 Sprint 1 - API key CRUD
+│   │   │       ├── liveness.py               🔒 Sprint 3 - Liveness check endpoint
+│   │   │       └── health.py                 🔒 Sprint 4 - Enhanced health checks
 │   │   │
 │   │   ├── 📁 models/
 │   │   │   ├── __init__.py                   ✅ DONE
@@ -119,7 +126,8 @@ getclearance/
 │   │   ├── 📁 schemas/
 │   │   │   ├── __init__.py                   ✅ DONE
 │   │   │   ├── applicant.py                  ✅ DONE
-│   │   │   └── webhook.py                    ✅ DONE - Webhook payloads
+│   │   │   ├── webhook.py                    ✅ DONE - Webhook payloads
+│   │   │   └── liveness.py                   🔒 Sprint 3 - Liveness check schemas
 │   │   │
 │   │   ├── 📁 services/
 │   │   │   ├── __init__.py                   ✅ DONE
@@ -130,15 +138,27 @@ getclearance/
 │   │   │   ├── mrz_parser.py                 ✅ DONE - Passport MRZ validation
 │   │   │   ├── webhook.py                    ✅ DONE - Webhook delivery with retry
 │   │   │   ├── evidence.py                   ✅ DONE - PDF generation
-│   │   │   └── timeline.py                   ✅ DONE - Event aggregation
+│   │   │   ├── timeline.py                   ✅ DONE - Event aggregation
+│   │   │   ├── api_keys.py                   🔒 Sprint 1 - API key management
+│   │   │   ├── liveness.py                   🔒 Sprint 3 - AWS Rekognition liveness
+│   │   │   ├── face_matching.py              🔒 Sprint 3 - Face comparison service
+│   │   │   └── monitoring.py                 🔒 Sprint 5 - Ongoing monitoring service
 │   │   │
-│   │   └── 📁 workers/                       ✅ 100% COMPLETE
+│   │   ├── 📁 middleware/                    🔒 PRODUCTION HARDENING
+│   │   │   ├── __init__.py                   🔒 Sprint 1 - Module exports
+│   │   │   ├── rate_limit.py                 🔒 Sprint 1 - Rate limiting with slowapi
+│   │   │   ├── request_id.py                 🔒 Sprint 1 - Request ID tracing
+│   │   │   ├── logging.py                    🔒 Sprint 1 - Structured JSON logging
+│   │   │   └── metrics.py                    🔒 Sprint 4 - Prometheus metrics middleware
+│   │   │
+│   │   └── 📁 workers/                       ✅ CORE COMPLETE, HARDENING NEEDED
 │   │       ├── __init__.py                   ✅ DONE
 │   │       ├── config.py                     ✅ DONE - ARQ worker configuration
 │   │       ├── screening_worker.py           ✅ DONE - Background screening
 │   │       ├── document_worker.py            ✅ DONE - OCR + fraud detection
 │   │       ├── ai_worker.py                  ✅ DONE - Background AI summaries
-│   │       └── webhook_worker.py             ✅ DONE - Webhook delivery
+│   │       ├── webhook_worker.py             ✅ DONE - Webhook delivery
+│   │       └── monitoring_worker.py          🔒 Sprint 5 - Ongoing monitoring cron
 │   │
 │   ├── 📁 migrations/
 │   │   ├── env.py                            ✅ DONE
@@ -146,17 +166,33 @@ getclearance/
 │   │   └── 📁 versions/
 │   │       └── 20251130_001_initial_schema.py ✅ DONE
 │   │
-│   ├── 📁 tests/                             ✅ 100% COMPLETE
+│   ├── 📁 tests/                             ⏳ CORE DONE, 80%+ COVERAGE NEEDED
 │   │   ├── __init__.py                       ✅ DONE
 │   │   ├── conftest.py                       ✅ DONE - Test fixtures
 │   │   ├── test_screening.py                 ✅ DONE - Screening tests
 │   │   ├── test_storage.py                   ✅ DONE - Storage tests
 │   │   ├── test_ai.py                        ✅ DONE - AI tests
 │   │   ├── test_workers.py                   ✅ DONE - Worker tests
-│   │   └── 📁 integration/
-│   │       ├── __init__.py                   ✅ DONE
-│   │       ├── test_full_applicant_flow.py   ✅ DONE - E2E test
-│   │       └── test_screening_flow.py        ✅ DONE - E2E test
+│   │   │
+│   │   ├── 📁 api/                           🔒 Sprint 2 - API Endpoint Tests
+│   │   │   ├── __init__.py                   🔒 Sprint 2
+│   │   │   ├── test_applicants.py            🔒 Sprint 2 - Applicant CRUD tests
+│   │   │   ├── test_documents.py             🔒 Sprint 2 - Document API tests
+│   │   │   ├── test_screening.py             🔒 Sprint 2 - Screening API tests
+│   │   │   ├── test_cases.py                 🔒 Sprint 2 - Case API tests
+│   │   │   └── test_auth.py                  🔒 Sprint 2 - Authentication tests
+│   │   │
+│   │   ├── 📁 integration/
+│   │   │   ├── __init__.py                   ✅ DONE
+│   │   │   ├── test_full_applicant_flow.py   ✅ DONE - E2E test
+│   │   │   ├── test_screening_flow.py        ✅ DONE - E2E test
+│   │   │   ├── test_document_processing.py   🔒 Sprint 2 - Full document flow
+│   │   │   └── test_webhook_delivery.py      🔒 Sprint 2 - Webhook E2E
+│   │   │
+│   │   └── 📁 e2e/                           🔒 Sprint 2 - End-to-End Tests
+│   │       ├── __init__.py                   🔒 Sprint 2
+│   │       ├── test_complete_kyc_flow.py     🔒 Sprint 2 - Full KYC journey
+│   │       └── test_case_resolution.py       🔒 Sprint 2 - Case workflow
 │   │
 │   ├── 📁 scripts/                           ✅ 100% COMPLETE
 │   │   ├── __init__.py                       ✅ DONE - Module marker
@@ -181,12 +217,14 @@ getclearance/
 │   ├── ENGINEERING_CONTEXT.md                ✅ DONE - Engineering context
 │   ├── TECHNICAL_IMPLEMENTATION_GUIDE.md     ✅ DONE - Implementation details
 │   ├── FRONTEND_AUDIT_AND_INTEGRATION_GUIDE.md ✅ NEW - Frontend gap analysis
+│   ├── IMPLEMENTATION_AUDIT.md               ✅ NEW - Honest assessment vs Sumsub
 │   └── 📁 implementation-guide/
 │       ├── 01_CURRENT_STATE_AUDIT.md         ✅ DONE
 │       ├── 02_FOLDER_STRUCTURE_COMPLETE.md   ✅ THIS FILE (updated)
 │       ├── 05_SUMSUB_CONTEXT.md              ✅ DONE
 │       ├── 08_MASTER_CHAT_PROMPTS.md         ✅ DONE - Backend prompts
-│       └── 09_FRONTEND_SPRINT_PROMPTS.md     ✅ NEW - Frontend prompts
+│       ├── 09_FRONTEND_SPRINT_PROMPTS.md     ✅ DONE - Frontend prompts
+│       └── 10_PRODUCTION_HARDENING_PROMPTS.md ✅ NEW - 5 sprints for prod readiness
 │
 ├── docker-compose.yml                        ✅ DONE
 ├── .env.local                                ✅ DONE
@@ -200,10 +238,10 @@ getclearance/
 
 ## File Count Summary
 
-### Current State (December 1, 2025 - Post Sprint 2)
+### Current State (December 1, 2025 - Post Frontend Sprint 2 + Audit)
 
 ```
-Backend:
+Backend (Core - Complete):
 ├── Core:              10 files  ✅ 100% complete
 ├── Models:             8 files  ✅ 100% complete
 ├── Schemas:            3 files  ✅ 100% complete
@@ -211,11 +249,24 @@ Backend:
 ├── Services:           9 files  ✅ 100% complete
 ├── Workers:            6 files  ✅ 100% complete
 ├── Migrations:         3 files  ✅ 100% complete
-├── Tests:              9 files  ✅ 100% complete
+├── Tests (basic):      9 files  ✅ 100% complete
 ├── Scripts:            4 files  ✅ 100% complete
 └── Config:             5 files  ✅ 100% complete
                         ───────
-Backend Total:         63 files  ✅ COMPLETE
+Backend Core:          63 files  ✅ COMPLETE
+
+Backend (Production Hardening - 10_PRODUCTION_HARDENING_PROMPTS.md):
+├── Middleware:         5 files  🔒 Sprint 1 (rate limit, request ID, logging)
+├── API (new):          3 files  🔒 Sprint 1, 3, 4 (api_keys, liveness, health)
+├── Services (new):     4 files  🔒 Sprint 1, 3, 5 (api_keys, liveness, face, monitoring)
+├── Schemas (new):      1 file   🔒 Sprint 3 (liveness)
+├── Workers (new):      1 file   🔒 Sprint 5 (monitoring_worker)
+├── Tests/api:          6 files  🔒 Sprint 2 (API endpoint tests)
+├── Tests/integration:  2 files  🔒 Sprint 2 (additional integration)
+├── Tests/e2e:          3 files  🔒 Sprint 2 (end-to-end)
+└── Observability:      2 files  🔒 Sprint 4 (logging_config, metrics)
+                        ───────
+Backend Hardening:     27 files  🔒 TO CREATE
 
 Frontend (Sprint 1 - Auth):
 ├── auth/AuthProvider.jsx        ✅ DONE
@@ -269,20 +320,25 @@ Docs Total:            15 files  ✅ COMPLETE
 ### Grand Total
 
 ```
-Backend:                63 files  ✅ 100% complete
+Backend (core):         63 files  ✅ 100% complete
+Backend (hardening):    27 files  🔒 TO CREATE (5 sprints)
 Frontend (Sprint 1):     4 files  ✅ Auth complete
 Frontend (Sprint 2):    16 files  ✅ API layer complete
 Frontend (existing):    11 files  ⏳ UI only - needs API integration
 Frontend (to create):   12 files  ❌ TODO (Sprints 3-7)
-Docs:                   15 files  ✅ 100% complete
+Docs:                   17 files  ✅ 100% complete (+2 new)
 Config (root):           6 files  ✅ 100% complete
                         ───────
-Current Total:         127 files
-After Frontend:        139 files
+Current Total:         129 files
+After All Work:        168 files
 
-Backend Progress:       63/63 = 100%
-Frontend Progress:      31/43 = 72% (Sprint 1-2 done, component integration remaining)
-Overall Progress:       ~85% (backend done, frontend foundation complete)
+Backend Core Progress:   63/63 = 100%
+Backend Hardening:       0/27 = 0% (15-23 days of work)
+Frontend Progress:       31/43 = 72% (Sprint 1-2 done)
+Docs Progress:           17/17 = 100%
+
+Overall for MVP/Beta:   ~80% (core done, hardening needed)
+Overall for Production: ~60% (hardening + frontend remaining)
 ```
 
 ---
@@ -374,21 +430,101 @@ Already complete from Sprint 2:
 
 ---
 
+## Backend Production Hardening Breakdown
+
+**Source:** `10_PRODUCTION_HARDENING_PROMPTS.md`
+**Total Effort:** 15-23 days
+
+### Sprint 1: Rate Limiting & API Security (2-3 days) 🔒
+Files to create:
+- `backend/app/middleware/__init__.py` - Module exports
+- `backend/app/middleware/rate_limit.py` - Rate limiting with slowapi + Redis
+- `backend/app/middleware/request_id.py` - X-Request-ID generation and propagation
+- `backend/app/middleware/logging.py` - Structured logging with request context
+- `backend/app/services/api_keys.py` - API key hashing, validation, rotation
+- `backend/app/api/v1/api_keys.py` - CRUD endpoints for API keys
+
+Files to update:
+- `backend/app/main.py` - Add middleware chain
+- `backend/app/config.py` - Add rate limit settings
+- `backend/requirements.txt` - Add slowapi
+
+### Sprint 2: Test Coverage to 80%+ (3-5 days) 🔒
+Files to create:
+- `backend/tests/api/__init__.py`
+- `backend/tests/api/test_applicants.py` - Applicant endpoint tests
+- `backend/tests/api/test_documents.py` - Document endpoint tests
+- `backend/tests/api/test_screening.py` - Screening endpoint tests
+- `backend/tests/api/test_cases.py` - Case endpoint tests
+- `backend/tests/api/test_auth.py` - Authentication edge cases
+- `backend/tests/integration/test_document_processing.py` - Full OCR flow
+- `backend/tests/integration/test_webhook_delivery.py` - Webhook E2E
+- `backend/tests/e2e/__init__.py`
+- `backend/tests/e2e/test_complete_kyc_flow.py` - Full KYC journey
+- `backend/tests/e2e/test_case_resolution.py` - Case workflow
+
+Files to update:
+- `backend/tests/conftest.py` - Add API test fixtures
+- `backend/pytest.ini` - Coverage reporting config
+
+### Sprint 3: Liveness Detection & Face Matching (5-7 days) 🔒
+Files to create:
+- `backend/app/services/liveness.py` - AWS Rekognition liveness integration
+- `backend/app/services/face_matching.py` - Face comparison (selfie vs ID photo)
+- `backend/app/schemas/liveness.py` - Request/response schemas
+- `backend/app/api/v1/liveness.py` - Liveness check endpoints
+
+Files to update:
+- `backend/app/config.py` - AWS Rekognition settings
+- `backend/app/workers/document_worker.py` - Add face extraction step
+- `backend/requirements.txt` - Add boto3 face recognition dependencies
+
+### Sprint 4: Observability Stack (3-5 days) 🔒
+Files to create:
+- `backend/app/logging_config.py` - Structured JSON logging with correlation
+- `backend/app/metrics.py` - Prometheus metrics definitions
+- `backend/app/middleware/metrics.py` - Request latency, error rate tracking
+- `backend/app/api/v1/health.py` - Enhanced health checks (deep checks)
+
+Files to update:
+- `backend/app/main.py` - Initialize observability
+- `backend/app/config.py` - Sentry DSN, metrics settings
+- `backend/requirements.txt` - Add prometheus-client, sentry-sdk, structlog
+
+### Sprint 5: Ongoing Monitoring (3-4 days) 🔒
+Files to create:
+- `backend/app/services/monitoring.py` - Re-screening service for existing applicants
+- `backend/app/workers/monitoring_worker.py` - Daily/weekly monitoring cron
+
+Files to update:
+- `backend/app/workers/config.py` - Add monitoring cron schedule
+- `backend/app/models/applicant.py` - Add last_monitored_at field
+
+---
+
 ## What's Actually Complete
 
-### Backend (100% Production Ready)
+### Backend Core Features (100% Complete)
 - ✅ All API endpoints working and tested
 - ✅ Auth0 JWT authentication with RBAC
 - ✅ Multi-tenant with Row-Level Security
 - ✅ OpenSanctions AML screening
 - ✅ Cloudflare R2 document storage
 - ✅ Claude AI risk analysis
-- ✅ AWS Textract OCR
+- ✅ AWS Textract OCR + MRZ parsing
 - ✅ Background workers (ARQ)
 - ✅ Webhook delivery with retry
 - ✅ Evidence PDF generation
-- ✅ Comprehensive test suite
+- ✅ Basic test suite (~40% coverage)
 - ✅ Deployed to Railway
+
+### Backend Gaps (From Implementation Audit)
+- ❌ No rate limiting (security risk)
+- ❌ No liveness detection (table stakes for KYC)
+- ❌ No face matching (selfie vs ID photo)
+- ❌ Test coverage ~40% (need 80%+)
+- ❌ No structured logging/observability
+- ❌ No ongoing monitoring (continuous screening)
 
 ### Frontend - Sprint 1 (Authentication) ✅ COMPLETE
 - ✅ Auth0 React SDK integration
@@ -420,23 +556,42 @@ Already complete from Sprint 2:
 
 ## Summary
 
-**Backend is complete and deployed.**
-**Frontend Sprints 1-2 are complete - Auth and API layer ready.**
-**Frontend needs 5 more sprints to integrate components with the API.**
+**Backend core is complete and deployed.** Needs production hardening for Sumsub-level quality.
+**Frontend Sprints 1-2 are complete.** Auth and API layer ready, components need integration.
 
-The foundation is now in place:
-- Auth0 authentication is working
-- API service layer is complete with all endpoints covered
-- React Query hooks are ready to use in components
-- Error handling infrastructure is in place
+### Remaining Work Overview
 
-The remaining work is connecting the existing UI components to the ready-to-use hooks:
+| Track | Sprints | Effort | Details |
+|-------|---------|--------|---------|
+| Backend Hardening | 5 sprints | 15-23 days | See `10_PRODUCTION_HARDENING_PROMPTS.md` |
+| Frontend Integration | 5 sprints | 18-25 days | See `09_FRONTEND_SPRINT_PROMPTS.md` |
+| **Total** | **10 sprints** | **33-48 days** | Can run in parallel |
+
+### Backend Production Hardening (15-23 days)
+- Sprint 1: Rate Limiting & API Security (2-3 days)
+- Sprint 2: Test Coverage 80%+ (3-5 days)
+- Sprint 3: Liveness & Face Matching (5-7 days)
+- Sprint 4: Observability Stack (3-5 days)
+- Sprint 5: Ongoing Monitoring (3-4 days)
+
+### Frontend Integration (18-25 days)
 - Sprint 3: ApplicantsList, ApplicantDetail → useApplicants hooks
 - Sprint 4: DocumentUpload, DocumentList → useDocuments hooks
 - Sprint 5: ScreeningChecks → useScreening hooks
 - Sprint 6: CaseManagement, ApplicantAssistant → useCases, useAI hooks
 - Sprint 7: Loading states, polish
 
-**Estimated Remaining Frontend Work: 18-25 days (~4-5 two-week sprints)**
+### What's Ready Now
+- Auth0 authentication working
+- API service layer complete
+- React Query hooks ready to use
+- Error handling infrastructure in place
+- Webhook system Sumsub-quality
+- MRZ parser excellent (full ICAO 9303)
 
-See `09_FRONTEND_SPRINT_PROMPTS.md` for detailed sprint prompts.
+### Critical Gaps (Must Fix Before Production)
+1. **No liveness detection** - Table stakes for KYC (security risk)
+2. **Low test coverage ~40%** - Need 80%+ (reliability risk)
+3. **No observability** - Can't monitor production (operational risk)
+
+See `docs/IMPLEMENTATION_AUDIT.md` for full assessment.

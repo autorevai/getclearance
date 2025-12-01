@@ -4,7 +4,7 @@ Get Clearance - Test Fixtures
 Comprehensive pytest fixtures for unit and integration testing.
 
 Provides:
-- In-memory SQLite async database
+- PostgreSQL async database (via Docker)
 - Mocked external services (OpenSanctions, R2, Claude)
 - Test data factories
 - FastAPI TestClient
@@ -28,11 +28,9 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.pool import StaticPool
 
 # Set test environment before importing app modules
-# Use a valid PostgreSQL URL format for pydantic validation (we won't actually connect to it)
-os.environ["DATABASE_URL"] = "postgresql+asyncpg://test:test@localhost:5432/test"
+os.environ["DATABASE_URL"] = "postgresql+asyncpg://postgres:postgres@localhost:5432/getclearance_test"
 os.environ["REDIS_URL"] = "redis://localhost:6379/1"
 os.environ["ENVIRONMENT"] = "development"
 
@@ -53,21 +51,24 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 # DATABASE FIXTURES
 # ===========================================
 
+# Use PostgreSQL for testing (Docker container)
+TEST_DATABASE_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://postgres:postgres@localhost:5432/getclearance_test"
+)
+
+
 @pytest_asyncio.fixture(scope="function")
 async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     """
-    Create in-memory SQLite engine for testing.
+    Create PostgreSQL engine for testing.
 
-    Uses SQLite instead of PostgreSQL for:
-    - No external dependencies
-    - Fast test execution
-    - Isolated test runs
+    Uses the Docker PostgreSQL container for full compatibility
+    with PostgreSQL-specific types (JSONB, ARRAY).
     """
     engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
+        TEST_DATABASE_URL,
         echo=False,
-        poolclass=StaticPool,
-        connect_args={"check_same_thread": False},
     )
 
     # Import all models to ensure they're registered
@@ -78,6 +79,7 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     )
 
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine
