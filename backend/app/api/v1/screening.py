@@ -1,10 +1,10 @@
 """
 Get Clearance - Screening API
 ==============================
-AML/Sanctions/PEP screening endpoints.
+AML/Sanctions/PEP screening endpoints with OpenSanctions integration.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -15,7 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.dependencies import TenantDB, AuthenticatedUser, require_permission
-from app.models import ScreeningCheck, ScreeningHit, Applicant
+from app.models import ScreeningCheck, ScreeningHit, ScreeningList, Applicant
+from app.services.screening import (
+    screening_service,
+    ScreeningServiceError,
+    ScreeningConfigError,
+)
 
 router = APIRouter()
 
@@ -100,17 +105,23 @@ async def run_screening(
     user: AuthenticatedUser,
 ):
     """
-    Run a screening check against sanctions/PEP lists.
+    Run a screening check against sanctions/PEP lists via OpenSanctions.
     
     You can either:
     - Provide an applicant_id to screen an existing applicant
     - Provide name/dob/country for ad-hoc screening
     
-    Returns immediately with check ID. Poll for results or wait for webhook.
+    The check runs synchronously and returns results immediately.
     """
-    # Determine what we're screening
+    # Determine what to screen
+    screened_name: str
+    screened_dob: date | None = None
+    screened_country: str | None = None
+    entity_type = "individual"
+    applicant_id: UUID | None = None
+    
     if data.applicant_id:
-        # Get applicant details
+        # Screen existing applicant
         query = select(Applicant).where(
             Applicant.id == data.applicant_id,
             Applicant.tenant_id == user.tenant_id,
@@ -124,26 +135,40 @@ async def run_screening(
                 detail="Applicant not found",
             )
         
-        screened_name = applicant.full_name
+        screened_name = f"{applicant.first_name or ''} {applicant.last_name or ''}".strip()
+        if not screened_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Applicant has no name to screen",
+            )
+        
         screened_dob = applicant.date_of_birth
         screened_country = applicant.nationality or applicant.country_of_residence
-        entity_type = "individual"
+        applicant_id = applicant.id
+        
     elif data.name:
+        # Ad-hoc screening
         screened_name = data.name
-        screened_dob = data.date_of_birth
+        if data.date_of_birth:
+            try:
+                screened_dob = date.fromisoformat(data.date_of_birth)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid date_of_birth format, use YYYY-MM-DD",
+                )
         screened_country = data.country
-        entity_type = "individual"
+        
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Must provide either applicant_id or name",
         )
     
-    # Create screening check
+    # Create screening check record
     check = ScreeningCheck(
         tenant_id=user.tenant_id,
-        applicant_id=data.applicant_id,
-        company_id=data.company_id,
+        applicant_id=applicant_id,
         entity_type=entity_type,
         screened_name=screened_name,
         screened_dob=screened_dob,
@@ -155,13 +180,111 @@ async def run_screening(
     db.add(check)
     await db.flush()
     
-    # TODO: Enqueue async screening job
-    # For now, simulate immediate completion with mock data
-    check.status = "clear"
-    check.completed_at = datetime.utcnow()
+    try:
+        # Run screening via OpenSanctions
+        countries = [screened_country] if screened_country else None
+        
+        screening_result = await screening_service.check_individual(
+            name=screened_name,
+            birth_date=screened_dob,
+            countries=countries,
+        )
+        
+        # Get or create screening list record for audit trail
+        list_record = await _get_or_create_screening_list(
+            db=db,
+            source="opensanctions",
+            version_id=screening_result.list_version_id,
+            list_type="combined",
+        )
+        
+        # Create hit records
+        for hit_result in screening_result.hits:
+            hit = ScreeningHit(
+                check_id=check.id,
+                list_id=list_record.id if list_record else None,
+                list_source=hit_result.list_source,
+                list_version_id=hit_result.list_version_id,
+                hit_type=hit_result.hit_type,
+                matched_entity_id=hit_result.matched_entity_id,
+                matched_name=hit_result.matched_name,
+                confidence=hit_result.confidence,
+                matched_fields=hit_result.matched_fields,
+                match_data=hit_result.match_data,
+                pep_tier=hit_result.pep_tier,
+                pep_position=hit_result.pep_position,
+                categories=hit_result.categories,
+                resolution_status="pending",
+            )
+            db.add(hit)
+        
+        # Update check status
+        check.status = screening_result.status
+        check.hit_count = len(screening_result.hits)
+        check.completed_at = datetime.utcnow()
+        
+        await db.flush()
+        
+        # Reload with hits for response
+        query = (
+            select(ScreeningCheck)
+            .where(ScreeningCheck.id == check.id)
+            .options(selectinload(ScreeningCheck.hits))
+        )
+        result = await db.execute(query)
+        check = result.scalar_one()
+        
+        return ScreeningCheckResponse.model_validate(check)
+        
+    except ScreeningConfigError:
+        # OpenSanctions not configured - return mock response for development
+        check.status = "clear"
+        check.hit_count = 0
+        check.completed_at = datetime.utcnow()
+        await db.flush()
+        
+        return ScreeningCheckResponse.model_validate(check)
+        
+    except ScreeningServiceError as e:
+        # Mark as error
+        check.status = "error"
+        check.completed_at = datetime.utcnow()
+        await db.flush()
+        
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Screening service error: {str(e)}",
+        )
+
+
+async def _get_or_create_screening_list(
+    db: AsyncSession,
+    source: str,
+    version_id: str,
+    list_type: str,
+) -> ScreeningList | None:
+    """Get or create a screening list record for audit tracking."""
+    query = select(ScreeningList).where(
+        ScreeningList.source == source,
+        ScreeningList.version_id == version_id,
+    )
+    result = await db.execute(query)
+    existing = result.scalar_one_or_none()
     
-    await db.refresh(check)
-    return ScreeningCheckResponse.model_validate(check)
+    if existing:
+        return existing
+    
+    # Create new record
+    list_record = ScreeningList(
+        source=source,
+        version_id=version_id,
+        list_type=list_type,
+        fetched_at=datetime.utcnow(),
+    )
+    db.add(list_record)
+    await db.flush()
+    
+    return list_record
 
 
 # ===========================================
@@ -171,13 +294,13 @@ async def run_screening(
 async def list_checks(
     db: TenantDB,
     user: AuthenticatedUser,
-    applicant_id: Annotated[UUID | None, Query()] = None,
-    status: Annotated[str | None, Query()] = None,
-    limit: Annotated[int, Query(ge=1, le=100)] = 50,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    applicant_id: UUID | None = Query(None),
+    check_status: str | None = Query(None, alias="status"),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
 ):
     """
-    List screening checks with optional filtering.
+    List screening checks with optional filters.
     """
     query = (
         select(ScreeningCheck)
@@ -192,9 +315,9 @@ async def list_checks(
         query = query.where(ScreeningCheck.applicant_id == applicant_id)
         count_query = count_query.where(ScreeningCheck.applicant_id == applicant_id)
     
-    if status:
-        query = query.where(ScreeningCheck.status == status)
-        count_query = count_query.where(ScreeningCheck.status == status)
+    if check_status:
+        query = query.where(ScreeningCheck.status == check_status)
+        count_query = count_query.where(ScreeningCheck.status == check_status)
     
     # Get total
     total_result = await db.execute(count_query)
@@ -297,3 +420,64 @@ async def resolve_hit(
     await db.refresh(hit)
     
     return ScreeningHitResponse.model_validate(hit)
+
+
+# ===========================================
+# AI HIT SUGGESTION
+# ===========================================
+@router.get("/hits/{hit_id}/suggestion")
+async def get_hit_suggestion(
+    hit_id: UUID,
+    db: TenantDB,
+    user: AuthenticatedUser,
+):
+    """
+    Get AI-generated suggestion for resolving a screening hit.
+    
+    Uses Claude to analyze the hit against applicant data and 
+    suggest whether it's a true match or false positive.
+    """
+    from app.services.ai import ai_service, AIServiceError
+    
+    # Verify hit exists and belongs to tenant
+    query = (
+        select(ScreeningHit)
+        .join(ScreeningCheck)
+        .where(
+            ScreeningHit.id == hit_id,
+            ScreeningCheck.tenant_id == user.tenant_id,
+        )
+    )
+    result = await db.execute(query)
+    hit = result.scalar_one_or_none()
+    
+    if not hit:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Hit not found",
+        )
+    
+    try:
+        suggestion = await ai_service.suggest_hit_resolution(db, hit_id)
+        
+        return {
+            "hit_id": str(hit_id),
+            "suggested_resolution": suggestion.suggested_resolution,
+            "confidence": suggestion.confidence,
+            "reasoning": suggestion.reasoning,
+            "evidence": [
+                {
+                    "source_type": e.source_type,
+                    "source_name": e.source_name,
+                    "excerpt": e.excerpt,
+                }
+                for e in suggestion.evidence
+            ],
+            "generated_at": suggestion.generated_at.isoformat(),
+        }
+        
+    except AIServiceError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"AI service error: {str(e)}",
+        )
