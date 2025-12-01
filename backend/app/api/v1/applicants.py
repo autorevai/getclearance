@@ -9,6 +9,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from sqlalchemy import select, func, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -24,6 +25,8 @@ from app.schemas.applicant import (
     ApplicantListResponse,
     StepComplete,
 )
+from app.services.evidence import evidence_service, EvidenceServiceError
+from app.services.timeline import timeline_service, TimelineServiceError
 
 router = APIRouter()
 
@@ -378,7 +381,209 @@ async def complete_step(
     # TODO: Check if all steps complete -> update applicant status
     # TODO: Trigger next steps if applicable
     # TODO: Create audit log entry
-    
+
     await db.flush()
-    
+
     return {"status": "completed", "step_id": step_id}
+
+
+# ===========================================
+# EVIDENCE EXPORT
+# ===========================================
+@router.get("/{applicant_id}/evidence")
+async def export_evidence(
+    applicant_id: UUID,
+    db: TenantDB,
+    user: Annotated[AuthenticatedUser, Depends(require_permission("read:applicants"))],
+):
+    """
+    Download evidence pack PDF for an applicant.
+
+    Generates a comprehensive PDF containing:
+    - Applicant information and risk assessment
+    - Document verification results
+    - Screening results with hit details
+    - AI risk analysis
+    - Complete event timeline
+    - Chain-of-custody audit trail
+
+    Returns:
+        PDF file as binary download
+    """
+    # Verify applicant belongs to tenant
+    query = select(Applicant).where(
+        Applicant.id == applicant_id,
+        Applicant.tenant_id == user.tenant_id,
+    )
+    result = await db.execute(query)
+    applicant = result.scalar_one_or_none()
+
+    if not applicant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Applicant not found",
+        )
+
+    try:
+        # Generate evidence pack
+        evidence_result = await evidence_service.generate_evidence_pack(
+            db=db,
+            applicant_id=applicant_id,
+            generated_by=user.email or user.id,
+        )
+
+        # Log the export in timeline
+        try:
+            await timeline_service.record_event(
+                db=db,
+                tenant_id=user.tenant_id,
+                applicant_id=applicant_id,
+                event_type="evidence_exported",
+                event_data={
+                    "generated_by": user.email or user.id,
+                    "page_count": evidence_result.page_count,
+                    "sections": evidence_result.sections_included,
+                },
+                actor_type="reviewer",
+                actor_id=UUID(user.id) if user.id else None,
+            )
+        except Exception:
+            # Don't fail the export if timeline logging fails
+            pass
+
+        # Build filename
+        applicant_name = evidence_result.metadata.applicant_name.replace(" ", "_")
+        timestamp = evidence_result.metadata.generated_at.strftime("%Y%m%d_%H%M%S")
+        filename = f"evidence_pack_{applicant_name}_{timestamp}.pdf"
+
+        # Return PDF response
+        return Response(
+            content=evidence_result.pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-Evidence-Pack-Version": evidence_result.metadata.pack_version,
+                "X-Page-Count": str(evidence_result.page_count),
+            },
+        )
+
+    except EvidenceServiceError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate evidence pack: {str(e)}",
+        )
+
+
+@router.get("/{applicant_id}/evidence/preview")
+async def preview_evidence(
+    applicant_id: UUID,
+    db: TenantDB,
+    user: Annotated[AuthenticatedUser, Depends(require_permission("read:applicants"))],
+):
+    """
+    Get a preview of what would be included in an evidence pack.
+
+    Useful for showing users what will be in the pack before generating.
+
+    Returns:
+        JSON object with section summaries and counts
+    """
+    # Verify applicant belongs to tenant
+    query = select(Applicant).where(
+        Applicant.id == applicant_id,
+        Applicant.tenant_id == user.tenant_id,
+    )
+    result = await db.execute(query)
+    applicant = result.scalar_one_or_none()
+
+    if not applicant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Applicant not found",
+        )
+
+    try:
+        preview = await evidence_service.get_evidence_preview(
+            db=db,
+            applicant_id=applicant_id,
+        )
+        return preview
+
+    except EvidenceServiceError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate preview: {str(e)}",
+        )
+
+
+@router.get("/{applicant_id}/timeline")
+async def get_timeline(
+    applicant_id: UUID,
+    db: TenantDB,
+    user: Annotated[AuthenticatedUser, Depends(require_permission("read:applicants"))],
+    limit: Annotated[int | None, Query(ge=1, le=500)] = None,
+):
+    """
+    Get the event timeline for an applicant.
+
+    Returns chronological list of all events (document uploads, status changes,
+    screening results, etc.) that occurred during the verification process.
+
+    Args:
+        limit: Maximum number of events to return (default: all)
+
+    Returns:
+        Timeline object with events grouped by date
+    """
+    # Verify applicant belongs to tenant
+    query = select(Applicant).where(
+        Applicant.id == applicant_id,
+        Applicant.tenant_id == user.tenant_id,
+    )
+    result = await db.execute(query)
+    applicant = result.scalar_one_or_none()
+
+    if not applicant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Applicant not found",
+        )
+
+    try:
+        timeline = await timeline_service.get_applicant_timeline(
+            db=db,
+            applicant_id=applicant_id,
+            limit=limit,
+        )
+
+        # Convert to dict for JSON response
+        return {
+            "applicant_id": timeline.applicant_id,
+            "applicant_name": timeline.applicant_name,
+            "total_events": timeline.total_events,
+            "generated_at": timeline.generated_at.isoformat(),
+            "groups": [
+                {
+                    "date": group.date,
+                    "events": [
+                        {
+                            "id": event.id,
+                            "timestamp": event.timestamp.isoformat(),
+                            "event_type": event.event_type,
+                            "description": event.description,
+                            "actor_type": event.actor_type,
+                            "actor_name": event.actor_name,
+                            "details": event.details,
+                        }
+                        for event in group.events
+                    ],
+                }
+                for group in timeline.groups
+            ],
+        }
+
+    except TimelineServiceError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch timeline: {str(e)}",
+        )

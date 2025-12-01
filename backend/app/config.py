@@ -136,6 +136,14 @@ class Settings(BaseSettings):
     )
 
     # ===========================================
+    # AWS (OCR via Textract)
+    # ===========================================
+    aws_access_key_id: str = Field(default="", repr=False)
+    aws_secret_access_key: str = Field(default="", repr=False)
+    aws_region: str = Field(default="us-east-1")
+    aws_textract_timeout: int = Field(default=30)  # seconds per document
+
+    # ===========================================
     # SECURITY
     # ===========================================
     # Secret key for signing (generate with: openssl rand -hex 32)
@@ -146,11 +154,25 @@ class Settings(BaseSettings):
     rate_limit_window: int = Field(default=60)  # seconds
 
     # ===========================================
+    # WEBHOOKS
+    # ===========================================
+    webhook_timeout: int = Field(default=30)  # seconds
+    webhook_max_retries: int = Field(default=3)
+    # Retry delays in seconds: 0s, 30s, 5min (following Sumsub pattern)
+    webhook_retry_delays: str = Field(default="0,30,300")
+
+    @property
+    def webhook_retry_delays_list(self) -> list[int]:
+        """Parse webhook retry delays into list of integers."""
+        return [int(d.strip()) for d in self.webhook_retry_delays.split(",")]
+
+    # ===========================================
     # FEATURE FLAGS
     # ===========================================
     feature_ai_summaries: bool = Field(default=True)
     feature_ongoing_monitoring: bool = Field(default=False)
     feature_batch_review: bool = Field(default=True)
+    feature_webhooks: bool = Field(default=True)
 
     # ===========================================
     # VALIDATION
