@@ -1203,19 +1203,361 @@ If unclear about Railway configuration or environment setup, ask first.
 
 ---
 
+## Chat 8: Utility Scripts & Schema Enhancements (Optional - 1-2 Days)
+
+### Files to Upload:
+1. `01_CURRENT_STATE_AUDIT.md`
+2. `02_FOLDER_STRUCTURE_COMPLETE.md`
+3. `05_SUMSUB_CONTEXT.md`
+4. `README.md` (from repo)
+
+### Prompt (Copy This):
+
+```
+# CHAT TITLE: Create Utility Scripts & Schema Migration (Optional Enhancements)
+
+## Context
+I'm building GetClearance, an AI-native KYC/AML platform (Sumsub clone). The project is 95% complete and deployed. These are optional enhancements to improve operations and add Sumsub-specific schema features.
+
+**Current Repo:** https://github.com/autorevai/getclearance
+
+## What Exists (Read These First)
+I've uploaded 4 context files:
+
+1. **01_CURRENT_STATE_AUDIT.md** - Final state (95% complete)
+2. **02_FOLDER_STRUCTURE_COMPLETE.md** - Directory tree showing what exists
+3. **05_SUMSUB_CONTEXT.md** - Sumsub features we're replicating
+4. **README.md** - Project README
+
+**Current state:**
+- ✅ All core services implemented and working
+- ✅ All workers implemented
+- ✅ Test suite complete
+- ✅ Deployed to Railway
+- ❌ Utility scripts not created (optional)
+- ❌ Sumsub schema enhancements not applied (optional)
+
+## What I Need You To Create
+
+### Part 1: Utility Scripts
+
+Create a `scripts/` directory with operational utilities:
+
+**Files to create:**
+1. `backend/scripts/__init__.py` - Module marker
+2. `backend/scripts/create_tenant.py` - CLI script to create new tenants
+3. `backend/scripts/seed_data.py` - Seed test data for development/staging
+4. `backend/scripts/check_health.py` - Health check script for monitoring
+
+### Part 2: Schema Migration (Optional)
+
+Create Alembic migration for Sumsub-specific features:
+
+**File to create:**
+5. `backend/migrations/versions/20251201_001_add_sumsub_features.py`
+
+## Integration Requirements
+
+### create_tenant.py
+
+Create a CLI script that:
+- Accepts tenant name and admin email as arguments
+- Creates a new Tenant record in the database
+- Creates an admin User for the tenant
+- Generates an API key for the tenant
+- Outputs the tenant_id and API key
+
+**Usage:**
+```bash
+cd backend
+python -m scripts.create_tenant --name "Acme Corp" --admin-email "admin@acme.com"
+
+# Output:
+# Tenant created successfully!
+# Tenant ID: 550e8400-e29b-41d4-a716-446655440000
+# API Key: gc_live_xxxxxxxxxxxxxxxxxxxx
+# Admin User: admin@acme.com
+```
+
+**Implementation:**
+```python
+#!/usr/bin/env python3
+"""
+Create a new tenant with admin user.
+
+Usage:
+    python -m scripts.create_tenant --name "Acme Corp" --admin-email "admin@acme.com"
+"""
+import argparse
+import asyncio
+import secrets
+from uuid import uuid4
+
+from app.database import get_db
+from app.models import Tenant, User
+
+
+def generate_api_key() -> str:
+    """Generate a secure API key."""
+    return f"gc_live_{secrets.token_urlsafe(32)}"
+
+
+async def create_tenant(name: str, admin_email: str) -> dict:
+    """Create tenant and admin user."""
+    async with get_db() as db:
+        # Create tenant
+        tenant = Tenant(
+            id=uuid4(),
+            name=name,
+            api_key=generate_api_key(),
+            settings={},
+            is_active=True,
+        )
+        db.add(tenant)
+
+        # Create admin user
+        user = User(
+            id=uuid4(),
+            tenant_id=tenant.id,
+            email=admin_email,
+            role="admin",
+            is_active=True,
+        )
+        db.add(user)
+
+        await db.commit()
+
+        return {
+            "tenant_id": str(tenant.id),
+            "api_key": tenant.api_key,
+            "admin_email": admin_email,
+        }
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Create a new tenant")
+    parser.add_argument("--name", required=True, help="Tenant name")
+    parser.add_argument("--admin-email", required=True, help="Admin email")
+    args = parser.parse_args()
+
+    result = asyncio.run(create_tenant(args.name, args.admin_email))
+
+    print("\nTenant created successfully!")
+    print(f"Tenant ID: {result['tenant_id']}")
+    print(f"API Key: {result['api_key']}")
+    print(f"Admin User: {result['admin_email']}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+### seed_data.py
+
+Create a script that seeds test data:
+- Creates a demo tenant
+- Creates 5-10 sample applicants with varying statuses
+- Creates sample documents for each applicant
+- Creates sample screening checks with hits
+- Creates sample cases
+
+**Usage:**
+```bash
+python -m scripts.seed_data --tenant-id <uuid>
+# or
+python -m scripts.seed_data --create-tenant  # Creates new demo tenant
+```
+
+### check_health.py
+
+Create a health check script for monitoring:
+- Checks database connectivity
+- Checks Redis connectivity
+- Checks external API availability (OpenSanctions, R2)
+- Returns exit code 0 if healthy, 1 if unhealthy
+- Outputs JSON for easy parsing
+
+**Usage:**
+```bash
+python -m scripts.check_health
+
+# Output:
+# {
+#   "status": "healthy",
+#   "checks": {
+#     "database": {"status": "ok", "latency_ms": 5},
+#     "redis": {"status": "ok", "latency_ms": 2},
+#     "r2_storage": {"status": "ok"},
+#     "opensanctions": {"status": "ok", "latency_ms": 150}
+#   },
+#   "timestamp": "2025-12-01T12:00:00Z"
+# }
+```
+
+### Schema Migration
+
+Create migration that adds Sumsub-inspired enhancements:
+
+**Changes:**
+1. **screening_hits table:**
+   - Add `match_type` VARCHAR(50) - 'true_positive', 'potential_match', 'false_positive'
+   - Add `pep_relationship` VARCHAR(50) - 'direct', 'family', 'associate'
+   - Add `source_reputation` VARCHAR(20) - 'high', 'medium', 'low'
+
+2. **documents table:**
+   - Add `security_features_detected` JSONB DEFAULT '[]'
+   - Add `fraud_signals` JSONB DEFAULT '[]'
+
+3. **Create webhook_configs table** (for tenant webhook settings):
+   - id (UUID PK)
+   - tenant_id (UUID FK)
+   - url (VARCHAR 500)
+   - secret (VARCHAR 255)
+   - events (JSONB) - array of subscribed events
+   - is_active (BOOLEAN DEFAULT true)
+   - created_at, updated_at
+
+4. **Create kyc_share_tokens table** (for future KYC data sharing):
+   - id (UUID PK)
+   - tenant_id (UUID FK)
+   - applicant_id (UUID FK)
+   - token (VARCHAR 64 UNIQUE)
+   - scope (JSONB) - what data can be accessed
+   - expires_at (TIMESTAMPTZ)
+   - revoked_at (TIMESTAMPTZ)
+   - access_count (INTEGER DEFAULT 0)
+
+## Architecture Constraints
+
+**Script Location:** All scripts in `backend/scripts/`
+
+**Script Pattern:**
+```python
+#!/usr/bin/env python3
+"""
+Script description.
+
+Usage:
+    python -m scripts.script_name --arg value
+"""
+import argparse
+import asyncio
+import sys
+
+# Add parent to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from app.database import get_db
+from app.config import settings
+
+
+async def main_async():
+    """Main async function."""
+    pass
+
+
+def main():
+    """CLI entry point."""
+    parser = argparse.ArgumentParser()
+    # Add arguments
+    args = parser.parse_args()
+    asyncio.run(main_async())
+
+
+if __name__ == "__main__":
+    main()
+```
+
+**Migration Pattern:**
+```python
+"""Add Sumsub-specific schema features
+
+Revision ID: 20251201_001
+Revises: <previous_revision>
+Create Date: 2025-12-01
+
+"""
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+
+revision = '20251201_001'
+down_revision = '<previous_revision>'
+branch_labels = None
+depends_on = None
+
+
+def upgrade():
+    # Add columns to existing tables
+    op.add_column('screening_hits', sa.Column('match_type', sa.String(50)))
+    # ... etc
+
+    # Create new tables
+    op.create_table('webhook_configs', ...)
+
+
+def downgrade():
+    # Reverse all changes
+    op.drop_table('webhook_configs')
+    op.drop_column('screening_hits', 'match_type')
+    # ... etc
+```
+
+## Success Criteria
+
+- [ ] `scripts/` directory created with __init__.py
+- [ ] `create_tenant.py` creates tenant and outputs credentials
+- [ ] `seed_data.py` populates database with realistic test data
+- [ ] `check_health.py` verifies all service connectivity
+- [ ] Schema migration adds all specified columns/tables
+- [ ] Migration has proper upgrade() and downgrade() functions
+- [ ] Scripts have --help documentation
+- [ ] Scripts handle errors gracefully (try/except with helpful messages)
+- [ ] All scripts can be run from backend directory
+
+## Testing
+
+After creating scripts, test them:
+
+```bash
+cd backend
+
+# Test create_tenant
+python -m scripts.create_tenant --name "Test Corp" --admin-email "test@test.com"
+
+# Test seed_data
+python -m scripts.seed_data --create-tenant
+
+# Test check_health
+python -m scripts.check_health
+
+# Test migration
+alembic upgrade head
+alembic downgrade -1
+alembic upgrade head
+```
+
+## Questions?
+If unclear about existing models, database patterns, or what data to seed, ask first.
+```
+
+---
+
 ## 📊 Chat Summary
 
-| Chat | Duration | Files Created | Priority |
-|------|----------|---------------|----------|
-| Chat 1: Schema Migration | 1 day | 1 migration file | 🔴 Critical |
-| Chat 2: Background Workers | 5-7 days | 5 worker files | 🔴 Critical |
-| Chat 3: OCR Service | 5-7 days | 2 services + 1 update | 🟡 Important |
-| Chat 4: Webhook Service | 3-4 days | 3 files | 🟢 Nice-to-have |
-| Chat 5: Evidence Export | 3-4 days | 2 services + 1 update | 🟢 Nice-to-have |
-| Chat 6: Testing | 7-10 days | 7 test files | 🔴 Critical |
-| Chat 7: Deployment | 3-5 days | 3 config files | 🔴 Critical |
+| Chat | Duration | Files Created | Priority | Status |
+|------|----------|---------------|----------|--------|
+| Chat 1: Schema Migration | 1 day | 1 migration file | 🔴 Critical | ✅ DONE |
+| Chat 2: Background Workers | 5-7 days | 5 worker files | 🔴 Critical | ✅ DONE |
+| Chat 3: OCR Service | 5-7 days | 2 services + 1 update | 🟡 Important | ✅ DONE |
+| Chat 4: Webhook Service | 3-4 days | 3 files | 🟢 Nice-to-have | ✅ DONE |
+| Chat 5: Evidence Export | 3-4 days | 2 services + 1 update | 🟢 Nice-to-have | ✅ DONE |
+| Chat 6: Testing | 7-10 days | 7 test files | 🔴 Critical | ✅ DONE |
+| Chat 7: Deployment | 3-5 days | 3 config files | 🔴 Critical | ✅ DONE |
+| Chat 8: Utility Scripts | 1-2 days | 4 scripts + 1 migration | 🟢 Optional | ⏳ TODO |
 
-**Total:** 27-38 days (4-5 weeks)
+**Completed:** Chats 1-7 (95% of project)
+**Remaining:** Chat 8 (optional enhancements)
 
 ---
 
