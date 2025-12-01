@@ -44,6 +44,12 @@ aioboto3==13.2.0          # Async S3 client
 anthropic==0.39.0         # Claude API
 
 # ===========================================
+# OCR & IMAGE PROCESSING
+# ===========================================
+numpy==1.26.4             # Required for OCR processing
+pillow==10.4.0            # Image handling
+
+# ===========================================
 # PDF GENERATION
 # ===========================================
 reportlab==4.2.5          # PDF generation for evidence packs
