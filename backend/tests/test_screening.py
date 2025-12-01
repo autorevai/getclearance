@@ -29,6 +29,23 @@ from app.services.screening import (
 
 
 # ===========================================
+# HELPER FUNCTIONS
+# ===========================================
+
+def create_unconfigured_screening_service():
+    """Create a ScreeningService that is explicitly not configured.
+
+    We bypass the constructor's 'or' fallback logic by directly setting attributes.
+    """
+    service = ScreeningService.__new__(ScreeningService)
+    service.api_key = ""
+    service.api_url = ""
+    service.timeout = 30.0
+    service._client = None
+    return service
+
+
+# ===========================================
 # SCREENING SERVICE INITIALIZATION
 # ===========================================
 
@@ -45,7 +62,7 @@ class TestScreeningServiceInit:
 
     def test_is_not_configured_without_api_key(self):
         """Service is not configured without API key."""
-        service = ScreeningService(api_key="", api_url="")
+        service = create_unconfigured_screening_service()
         assert service.is_configured is False
 
     def test_default_timeout(self):
@@ -442,7 +459,7 @@ class TestIndividualScreening:
     @pytest.mark.asyncio
     async def test_check_individual_not_configured(self):
         """Screening fails when not configured."""
-        service = ScreeningService(api_key="", api_url="")
+        service = create_unconfigured_screening_service()
 
         with pytest.raises(ScreeningConfigError) as exc_info:
             await service.check_individual(name="Test")

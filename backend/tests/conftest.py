@@ -31,7 +31,8 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import StaticPool
 
 # Set test environment before importing app modules
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+# Use a valid PostgreSQL URL format for pydantic validation (we won't actually connect to it)
+os.environ["DATABASE_URL"] = "postgresql+asyncpg://test:test@localhost:5432/test"
 os.environ["REDIS_URL"] = "redis://localhost:6379/1"
 os.environ["ENVIRONMENT"] = "development"
 

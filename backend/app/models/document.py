@@ -76,6 +76,8 @@ class Document(Base, UUIDMixin, TimestampMixin):
     # verification_checks: [{check, passed, confidence, details}]
     fraud_signals: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     # fraud_signals: [{signal, severity, details}]
+    security_features_detected: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    # Example: ["hologram", "mrz", "watermark", "microprint"]
     
     # Translation (if non-English)
     original_language: Mapped[str | None] = mapped_column(String(10))

@@ -19,7 +19,8 @@ import {
   Bell,
   Sparkles,
   Moon,
-  Sun
+  Sun,
+  LogOut
 } from 'lucide-react';
 
 const navItems = [
@@ -39,10 +40,21 @@ const navItems = [
   { id: 'audit-log', label: 'Audit Log', icon: ScrollText, priority: 'P0' },
 ];
 
-export default function AppShell({ children, currentPage, onNavigate }) {
+export default function AppShell({ children, currentPage, onNavigate, user, onLogout }) {
   const [collapsed, setCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  // Get user display info
+  const userName = user?.name || user?.email || 'User';
+  const userInitials = userName
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+  const userPicture = user?.picture;
 
   return (
     <div className={`app-shell ${darkMode ? 'dark' : 'light'}`}>
@@ -374,12 +386,13 @@ export default function AppShell({ children, currentPage, onNavigate }) {
           border-radius: 8px;
           cursor: pointer;
           transition: background 0.15s;
+          position: relative;
         }
-        
+
         .user-menu:hover {
           background: var(--bg-hover);
         }
-        
+
         .user-avatar {
           width: 32px;
           height: 32px;
@@ -391,21 +404,76 @@ export default function AppShell({ children, currentPage, onNavigate }) {
           font-weight: 600;
           font-size: 13px;
           color: white;
+          overflow: hidden;
         }
-        
+
+        .user-avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
         .user-info {
           display: flex;
           flex-direction: column;
         }
-        
+
         .user-name {
           font-size: 13px;
           font-weight: 500;
         }
-        
+
         .user-role {
           font-size: 11px;
           color: var(--text-muted);
+        }
+
+        .user-dropdown {
+          position: absolute;
+          top: 100%;
+          right: 0;
+          margin-top: 8px;
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+          min-width: 200px;
+          z-index: 200;
+          overflow: hidden;
+        }
+
+        .user-dropdown-header {
+          padding: 12px 16px;
+          border-bottom: 1px solid var(--border-color);
+        }
+
+        .user-dropdown-email {
+          font-size: 12px;
+          color: var(--text-muted);
+          word-break: break-all;
+        }
+
+        .user-dropdown-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 16px;
+          cursor: pointer;
+          transition: background 0.15s;
+          color: var(--text-primary);
+          font-size: 14px;
+        }
+
+        .user-dropdown-item:hover {
+          background: var(--bg-hover);
+        }
+
+        .user-dropdown-item.danger {
+          color: var(--danger);
+        }
+
+        .user-dropdown-item.danger:hover {
+          background: rgba(239, 68, 68, 0.1);
         }
         
         .main-content {
@@ -569,13 +637,36 @@ export default function AppShell({ children, currentPage, onNavigate }) {
               {darkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
             
-            <div className="user-menu">
-              <div className="user-avatar">CD</div>
+            <div className="user-menu" onClick={() => setUserMenuOpen(!userMenuOpen)}>
+              <div className="user-avatar">
+                {userPicture ? (
+                  <img src={userPicture} alt={userName} />
+                ) : (
+                  userInitials
+                )}
+              </div>
               <div className="user-info">
-                <span className="user-name">Chris D.</span>
+                <span className="user-name">{userName.split(' ')[0]}</span>
                 <span className="user-role">Admin</span>
               </div>
-              <ChevronDown size={16} />
+              <ChevronDown size={16} style={{ transform: userMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+
+              {userMenuOpen && (
+                <div className="user-dropdown">
+                  <div className="user-dropdown-header">
+                    <div className="user-name">{userName}</div>
+                    <div className="user-dropdown-email">{user?.email}</div>
+                  </div>
+                  <div className="user-dropdown-item" onClick={(e) => { e.stopPropagation(); onNavigate?.('settings'); setUserMenuOpen(false); }}>
+                    <Settings size={16} />
+                    <span>Settings</span>
+                  </div>
+                  <div className="user-dropdown-item danger" onClick={(e) => { e.stopPropagation(); onLogout?.(); }}>
+                    <LogOut size={16} />
+                    <span>Sign out</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>

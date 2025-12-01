@@ -1,14 +1,28 @@
 import React, { useState } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
 import AppShell from './components/AppShell';
 import Dashboard from './components/Dashboard';
 import ApplicantsList from './components/ApplicantsList';
 import ApplicantDetail from './components/ApplicantDetail';
 import ScreeningChecks from './components/ScreeningChecks';
 import CaseManagement from './components/CaseManagement';
+import LoginPage from './components/LoginPage';
+import LoadingScreen from './components/LoadingScreen';
 
 export default function App() {
+  const { isAuthenticated, isLoading, user, logout } = useAuth0();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [selectedApplicant, setSelectedApplicant] = useState(null);
+
+  // Show loading screen while checking auth state
+  if (isLoading) {
+    return <LoadingScreen message="Checking authentication..." />;
+  }
+
+  // Show login page if not authenticated
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
 
   const handleNavigate = (page) => {
     setCurrentPage(page);
@@ -23,11 +37,19 @@ export default function App() {
     setSelectedApplicant(null);
   };
 
+  const handleLogout = () => {
+    logout({
+      logoutParams: {
+        returnTo: window.location.origin,
+      },
+    });
+  };
+
   const renderContent = () => {
     // If we have a selected applicant, show detail view
     if (selectedApplicant) {
       return (
-        <ApplicantDetail 
+        <ApplicantDetail
           applicant={selectedApplicant}
           onBack={handleBackFromDetail}
         />
@@ -59,7 +81,12 @@ export default function App() {
   };
 
   return (
-    <AppShell currentPage={currentPage} onNavigate={handleNavigate}>
+    <AppShell
+      currentPage={currentPage}
+      onNavigate={handleNavigate}
+      user={user}
+      onLogout={handleLogout}
+    >
       {renderContent()}
     </AppShell>
   );

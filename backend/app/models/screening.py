@@ -169,7 +169,15 @@ class ScreeningHit(Base, UUIDMixin):
     
     # Raw match data from source
     match_data: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-    
+
+    # Match classification (from Sumsub-inspired features)
+    match_type: Mapped[str | None] = mapped_column(String(50))
+    # Values: 'true_positive', 'potential_match', 'false_positive', 'unknown'
+    sentiment: Mapped[str | None] = mapped_column(String(20))
+    # Values: 'positive', 'neutral', 'negative' (for adverse media)
+    source_reputation: Mapped[str | None] = mapped_column(String(20))
+    # Values: 'high', 'medium', 'low'
+
     # PEP-specific fields
     pep_tier: Mapped[int | None] = mapped_column(Integer)  # 1, 2, 3, 4
     pep_position: Mapped[str | None] = mapped_column(Text)

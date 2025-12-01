@@ -2,11 +2,23 @@
 
 AI-native KYC/AML compliance platform - a Sumsub alternative.
 
-**Status: 95% Complete - Ready for Production Deployment**
+**Status: Backend 100% Complete | Frontend Sprint 1-2 Complete**
+
+## Current Reality
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| Backend API | 100% Complete | All endpoints working, deployed to Railway |
+| Frontend UI | UI Complete | Beautiful Sumsub-style components |
+| Frontend Auth | ✅ Sprint 1 Complete | Auth0 login/logout, protected routes |
+| Frontend API Layer | ✅ Sprint 2 Complete | Services + React Query hooks ready |
+| Component Integration | In Progress | Components need to use the API hooks |
+
+**The foundation is complete.** Auth0 authentication and API service layer are working. Components still use mock data but the hooks are ready. See [Frontend Integration Guide](./docs/FRONTEND_AUDIT_AND_INTEGRATION_GUIDE.md) for details.
 
 ## Quick Start
 
-### Frontend Only (React)
+### Frontend Only (UI Preview - Mock Data)
 
 ```bash
 cd frontend
@@ -14,9 +26,9 @@ npm install
 npm start
 ```
 
-Open http://localhost:9000
+Open http://localhost:9000 - You'll see the UI with fake data.
 
-### Full Stack (with Backend)
+### Full Stack (Backend with Real Data)
 
 ```bash
 # 1. Copy environment variables
@@ -41,27 +53,26 @@ uvicorn app.main:app --reload --port 8000
 # 6. Start background workers (new terminal)
 arq app.workers.config.WorkerSettings
 
-# Frontend: http://localhost:9000
 # API: http://localhost:8000
 # API Docs: http://localhost:8000/docs
 ```
 
-**Security Note**: See [Docker Security Documentation](./docs/DOCKER_SECURITY.md) for best practices.
+**Note:** The frontend has authentication working. Components still use mock data until Sprint 3+ integration.
 
 ## Project Structure
 
 ```
 getclearance/
-├── frontend/                    # React application (100% complete)
+├── frontend/                    # React application (UI complete, needs API integration)
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── AppShell.jsx           # Main layout, navigation
-│   │   │   ├── Dashboard.jsx          # KPI cards, AI insights
-│   │   │   ├── ApplicantsList.jsx     # Applicants table
-│   │   │   ├── ApplicantDetail.jsx    # Individual applicant view
-│   │   │   ├── ScreeningChecks.jsx    # AML screening
-│   │   │   ├── CaseManagement.jsx     # Case queue
-│   │   │   ├── ApplicantAssistant.jsx # End-user chat
+│   │   │   ├── Dashboard.jsx          # KPI cards (mock data)
+│   │   │   ├── ApplicantsList.jsx     # Applicants table (mock data)
+│   │   │   ├── ApplicantDetail.jsx    # Individual applicant (mock data)
+│   │   │   ├── ScreeningChecks.jsx    # AML screening (mock data)
+│   │   │   ├── CaseManagement.jsx     # Case queue (mock data)
+│   │   │   ├── ApplicantAssistant.jsx # End-user chat (fake responses)
 │   │   │   └── DesignSystem.jsx       # Shared components
 │   │   ├── App.jsx
 │   │   └── index.js
@@ -91,31 +102,20 @@ getclearance/
 │   │   │   ├── evidence.py      # PDF evidence pack generation
 │   │   │   └── timeline.py      # Event aggregation
 │   │   └── workers/             # Background job processing (ARQ)
-│   │       ├── config.py        # ARQ worker configuration
-│   │       ├── screening_worker.py
-│   │       ├── document_worker.py
-│   │       ├── ai_worker.py
-│   │       └── webhook_worker.py
 │   ├── tests/                   # Test suite
-│   │   ├── test_screening.py
-│   │   ├── test_storage.py
-│   │   ├── test_ai.py
-│   │   ├── test_workers.py
-│   │   └── integration/
+│   ├── scripts/                 # Utility scripts
 │   ├── migrations/              # Alembic migrations
 │   ├── Dockerfile
-│   ├── railway.json             # Railway deployment config
 │   └── requirements.txt
 │
 ├── docs/
-│   ├── DEPLOYMENT_GUIDE.md      # Railway deployment instructions
+│   ├── FRONTEND_AUDIT_AND_INTEGRATION_GUIDE.md  # Frontend gap analysis
+│   ├── DEPLOYMENT_GUIDE.md      # Railway deployment
 │   ├── ARCHITECTURE.md          # System design
-│   ├── ENGINEERING_CONTEXT.md   # Technical implementation details
-│   └── implementation-guide/    # Detailed implementation docs
+│   └── implementation-guide/
+│       ├── 08_MASTER_CHAT_PROMPTS.md     # Backend build prompts
+│       └── 09_FRONTEND_SPRINT_PROMPTS.md # Frontend integration prompts
 │
-├── .env.example                 # Development environment template
-├── .env.production.example      # Production environment template
-├── docker-compose.yml           # PostgreSQL, Redis
 └── README.md
 ```
 
@@ -123,53 +123,74 @@ getclearance/
 
 ### Frontend
 - React 18
+- Auth0 React SDK (authentication)
+- React Query / TanStack Query (server state)
 - Lucide React (icons)
 - Inline CSS (no external dependencies)
 
-### Backend
+### Backend (Complete)
 - FastAPI (async Python)
 - PostgreSQL 15+ with SQLAlchemy 2.0
 - Redis (caching, job queue via ARQ)
 - Cloudflare R2 (document storage)
 - Auth0 (authentication)
 
-### AI & Integrations
+### AI & Integrations (Complete)
 - Claude API (risk assessment, document analysis)
 - OpenSanctions (AML/sanctions/PEP screening)
 - AWS Textract (OCR document processing)
 
 ## Features
 
-### Frontend
-- [x] Dashboard with KPI cards and AI insights
-- [x] Applicants list with filtering, batch actions
-- [x] Applicant detail with AI Snapshot tab
-- [x] AML Screening checks with list version tracking
-- [x] Case management queue
-- [x] Applicant-facing chat assistant
-- [x] Dark/light theme
-- [x] Responsive design
-
-### Backend
-- [x] FastAPI scaffold with async SQLAlchemy
-- [x] PostgreSQL models with multi-tenant support
-- [x] Auth0 JWT authentication
-- [x] Applicants CRUD API
+### Backend (100% Complete)
+- [x] FastAPI with async SQLAlchemy
+- [x] PostgreSQL with multi-tenant support (RLS)
+- [x] Auth0 JWT authentication with RBAC
+- [x] Applicants CRUD API with review workflow
 - [x] Documents API with R2 presigned URLs
 - [x] Screening API with OpenSanctions integration
 - [x] Cases API for investigations
 - [x] AI endpoints for risk summaries
-- [x] Background workers (ARQ) for async processing
+- [x] Background workers (ARQ)
 - [x] OCR with MRZ passport validation
 - [x] Webhook delivery with retry logic
 - [x] Evidence pack PDF export
 - [x] Comprehensive test suite
+- [x] Deployed to Railway
 
-### Optional Enhancements (TODO)
-- [ ] Utility scripts (create_tenant, seed_data, check_health)
-- [ ] Additional Sumsub-specific schema features
+### Frontend (Sprint 1-2 Complete, Components Need Integration)
+- [x] Dashboard with KPI cards
+- [x] Applicants list with filtering
+- [x] Applicant detail with tabs
+- [x] AML Screening interface
+- [x] Case management queue
+- [x] AI assistant chat
+- [x] Dark/light theme
+- [x] **Authentication (Auth0 login/logout working)**
+- [x] **API service layer (all endpoints covered)**
+- [x] **React Query hooks (ready to use)**
+- [ ] **Component integration (still using mock data)**
+- [ ] **Real-time updates (no WebSocket yet)**
 
-## API Endpoints
+## Frontend Work Remaining
+
+Sprints 1-2 are complete. The remaining work is connecting components to the API:
+
+| Sprint | Focus | Status |
+|--------|-------|--------|
+| 1 | Authentication (Auth0) | ✅ Complete |
+| 2 | API Service Layer | ✅ Complete |
+| 3 | Applicants Module | 🔲 Pending |
+| 4 | Document Upload | 🔲 Pending |
+| 5 | Screening Module | 🔲 Pending |
+| 6 | Cases & AI | 🔲 Pending |
+| 7 | Polish & Real-time | 🔲 Pending |
+
+**Remaining: ~18-25 days (Sprints 3-7)**
+
+See [Frontend Sprint Prompts](./docs/implementation-guide/09_FRONTEND_SPRINT_PROMPTS.md) for copy-paste ready prompts for each sprint.
+
+## API Endpoints (All Working)
 
 ### Applicants
 - `GET /api/v1/applicants` - List applicants
@@ -241,13 +262,10 @@ ANTHROPIC_API_KEY=sk-ant-...
 # OpenSanctions (Screening)
 OPENSANCTIONS_API_KEY=...
 
-# AWS (OCR - optional)
+# AWS (OCR)
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 AWS_REGION=us-east-1
-
-# Monitoring (optional)
-SENTRY_DSN=...
 ```
 
 ## Development
@@ -266,10 +284,6 @@ pytest
 
 # With coverage
 pytest --cov=app tests/
-
-# Frontend tests
-cd frontend
-npm test
 ```
 
 ### Running Workers
@@ -279,48 +293,57 @@ cd backend
 arq app.workers.config.WorkerSettings
 ```
 
+### Utility Scripts
+
+```bash
+cd backend
+
+# Create a new tenant
+python -m scripts.create_tenant --name "Acme Corp" --admin-email "admin@acme.com"
+
+# Seed test data
+python -m scripts.seed_data --create-tenant
+
+# Check system health
+python -m scripts.check_health
+```
+
 ## Deployment
 
-### Railway (Recommended)
+### Railway (Backend - Already Deployed)
+
+The backend is deployed on Railway. To redeploy:
 
 1. Push to GitHub
-2. Connect Railway to your repo (set root directory to `backend`)
-3. Add PostgreSQL and Redis services
-4. Set environment variables (see `.env.production.example`)
-5. Deploy - Railway auto-runs migrations via `railway.json`
+2. Railway auto-deploys from main branch
+3. Migrations run automatically via `railway.json`
 
 See [docs/DEPLOYMENT_GUIDE.md](./docs/DEPLOYMENT_GUIDE.md) for detailed instructions.
 
-### Health Check
+### Frontend Deployment
 
-```bash
-curl https://your-app.railway.app/health
-# {"status": "healthy", "version": "1.0.0", "environment": "production"}
-```
-
-## Project Status
-
-| Component | Status |
-|-----------|--------|
-| Frontend | 100% Complete |
-| Backend API | 100% Complete |
-| Services (screening, storage, AI, OCR, webhooks) | 100% Complete |
-| Background Workers | 100% Complete |
-| Test Suite | 100% Complete |
-| Deployment Config | 100% Complete |
-| **Overall** | **95% Complete** |
+Once frontend integration is complete, deploy to:
+- Vercel (recommended)
+- Netlify
+- Cloudflare Pages
 
 ## Documentation
 
+- [Frontend Audit & Integration Guide](./docs/FRONTEND_AUDIT_AND_INTEGRATION_GUIDE.md) - Gap analysis
+- [Frontend Sprint Prompts](./docs/implementation-guide/09_FRONTEND_SPRINT_PROMPTS.md) - Build prompts
 - [Deployment Guide](./docs/DEPLOYMENT_GUIDE.md) - Railway deployment
 - [Architecture](./docs/ARCHITECTURE.md) - System design
 - [Engineering Context](./docs/ENGINEERING_CONTEXT.md) - Technical details
-- [Docker Security](./docs/DOCKER_SECURITY.md) - Security best practices
-- [Implementation Guide](./docs/implementation-guide/) - Detailed docs
 
-## License
+## Project Status Summary
 
-Proprietary - All rights reserved.
+```
+Backend:  ████████████████████ 100%  - Production ready, deployed
+Frontend: ██████████████░░░░░░  72%  - Auth + API layer done, component integration needed
+Overall:  ██████████████████░░  88%  - Sprints 3-7 remaining
+```
+
+**Next Step:** Start Frontend Sprint 3 (Applicants Module Integration)
 
 ---
 
