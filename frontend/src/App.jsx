@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth0 } from '@auth0/auth0-react';
 import AppShell from './components/AppShell';
 import Dashboard from './components/Dashboard';
@@ -11,8 +12,8 @@ import LoadingScreen from './components/LoadingScreen';
 
 export default function App() {
   const { isAuthenticated, isLoading, user, logout } = useAuth0();
-  const [currentPage, setCurrentPage] = useState('dashboard');
-  const [selectedApplicant, setSelectedApplicant] = useState(null);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Show loading screen while checking auth state
   if (isLoading) {
@@ -24,17 +25,33 @@ export default function App() {
     return <LoginPage />;
   }
 
+  // Determine current page from URL for sidebar highlighting
+  const getCurrentPage = () => {
+    const path = location.pathname;
+    if (path.startsWith('/applicants')) return 'applicants';
+    if (path.startsWith('/screening')) return 'screening';
+    if (path.startsWith('/cases')) return 'cases';
+    if (path.startsWith('/companies')) return 'companies';
+    if (path.startsWith('/integrations')) return 'integrations';
+    if (path.startsWith('/settings')) return 'settings';
+    if (path.startsWith('/billing')) return 'billing';
+    if (path.startsWith('/audit-log')) return 'audit-log';
+    return 'dashboard';
+  };
+
   const handleNavigate = (page) => {
-    setCurrentPage(page);
-    setSelectedApplicant(null);
-  };
-
-  const handleSelectApplicant = (applicant) => {
-    setSelectedApplicant(applicant);
-  };
-
-  const handleBackFromDetail = () => {
-    setSelectedApplicant(null);
+    const routes = {
+      dashboard: '/',
+      applicants: '/applicants',
+      companies: '/companies',
+      screening: '/screening',
+      cases: '/cases',
+      integrations: '/integrations',
+      settings: '/settings',
+      billing: '/billing',
+      'audit-log': '/audit-log',
+    };
+    navigate(routes[page] || '/');
   };
 
   const handleLogout = () => {
@@ -45,49 +62,26 @@ export default function App() {
     });
   };
 
-  const renderContent = () => {
-    // If we have a selected applicant, show detail view
-    if (selectedApplicant) {
-      return (
-        <ApplicantDetail
-          applicant={selectedApplicant}
-          onBack={handleBackFromDetail}
-        />
-      );
-    }
-
-    switch (currentPage) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'applicants':
-        return <ApplicantsList onSelectApplicant={handleSelectApplicant} />;
-      case 'companies':
-        return <CompaniesList />;
-      case 'screening':
-        return <ScreeningChecks />;
-      case 'cases':
-        return <CaseManagement />;
-      case 'integrations':
-        return <IntegrationsPage />;
-      case 'settings':
-        return <SettingsPage />;
-      case 'billing':
-        return <BillingPage />;
-      case 'audit-log':
-        return <AuditLogPage />;
-      default:
-        return <ComingSoonPage pageName={currentPage} />;
-    }
-  };
-
   return (
     <AppShell
-      currentPage={currentPage}
+      currentPage={getCurrentPage()}
       onNavigate={handleNavigate}
       user={user}
       onLogout={handleLogout}
     >
-      {renderContent()}
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/applicants" element={<ApplicantsList />} />
+        <Route path="/applicants/:id" element={<ApplicantDetail />} />
+        <Route path="/companies" element={<CompaniesList />} />
+        <Route path="/screening" element={<ScreeningChecks />} />
+        <Route path="/cases" element={<CaseManagement />} />
+        <Route path="/integrations" element={<IntegrationsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/billing" element={<BillingPage />} />
+        <Route path="/audit-log" element={<AuditLogPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </AppShell>
   );
 }
@@ -140,17 +134,6 @@ function AuditLogPage() {
     <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
       <h2 style={{ marginBottom: 16, color: 'var(--text-primary)' }}>Audit Log</h2>
       <p>Immutable, signed audit trail of all actions.</p>
-    </div>
-  );
-}
-
-function ComingSoonPage({ pageName }) {
-  return (
-    <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-      <h2 style={{ marginBottom: 16, color: 'var(--text-primary)' }}>
-        {pageName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-      </h2>
-      <p>This feature is coming soon.</p>
     </div>
   );
 }
