@@ -1,15 +1,18 @@
 /**
  * React Query hooks for Cases
  *
- * Provides data fetching, caching, and mutation hooks for case management.
+ * Production-grade hooks with:
+ * - Optimistic updates for status changes
+ * - Real-time note additions
+ * - Assignment tracking
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth';
 import { CasesService } from '../services';
 import { applicantKeys } from './useApplicants';
 
-// Query key factory
 export const caseKeys = {
   all: ['cases'],
   lists: () => [...caseKeys.all, 'list'],
@@ -19,163 +22,225 @@ export const caseKeys = {
   myCases: (filters) => [...caseKeys.all, 'my-cases', filters],
 };
 
-/**
- * Hook to fetch list of cases with filters
- * @param {Object} filters - Filter parameters (status, priority, assigned_to, applicant_id, search)
- * @param {Object} options - Additional React Query options
- */
-export function useCases(filters = {}, options = {}) {
+function useCasesService() {
   const { getToken } = useAuth();
+  return useMemo(() => new CasesService(getToken), [getToken]);
+}
+
+export function useCases(filters = {}, options = {}) {
+  const service = useCasesService();
 
   return useQuery({
     queryKey: caseKeys.list(filters),
-    queryFn: async () => {
-      const service = new CasesService(getToken);
-      return service.list(filters);
-    },
+    queryFn: ({ signal }) => service.list(filters, { signal }),
+    staleTime: 30000,
     ...options,
   });
 }
 
-/**
- * Hook to fetch a single case by ID
- * @param {string} id - Case ID
- * @param {Object} options - Additional React Query options
- */
+export function useInfiniteCases(filters = {}, options = {}) {
+  const service = useCasesService();
+  const limit = filters.limit || 20;
+
+  return useInfiniteQuery({
+    queryKey: [...caseKeys.list(filters), 'infinite'],
+    queryFn: ({ pageParam = 0, signal }) =>
+      service.list({ ...filters, limit, offset: pageParam }, { signal }),
+    getNextPageParam: (lastPage, allPages) => {
+      const totalFetched = allPages.reduce((sum, page) => sum + page.items.length, 0);
+      return totalFetched < lastPage.total ? totalFetched : undefined;
+    },
+    staleTime: 30000,
+    ...options,
+  });
+}
+
 export function useCase(id, options = {}) {
-  const { getToken } = useAuth();
+  const service = useCasesService();
 
   return useQuery({
     queryKey: caseKeys.detail(id),
-    queryFn: async () => {
-      const service = new CasesService(getToken);
-      return service.get(id);
-    },
+    queryFn: ({ signal }) => service.get(id, { signal }),
     enabled: !!id,
+    staleTime: 30000,
     ...options,
   });
 }
 
-/**
- * Hook to fetch cases assigned to current user
- * @param {Object} filters - Additional filters
- * @param {Object} options - Additional React Query options
- */
 export function useMyCases(filters = {}, options = {}) {
-  const { getToken } = useAuth();
+  const service = useCasesService();
 
   return useQuery({
     queryKey: caseKeys.myCases(filters),
-    queryFn: async () => {
-      const service = new CasesService(getToken);
-      return service.getMyCases(filters);
-    },
+    queryFn: ({ signal }) => service.getMyCases(filters, { signal }),
+    staleTime: 30000,
     ...options,
   });
 }
 
-/**
- * Hook to create a new case
- * @returns Mutation object with mutate/mutateAsync functions
- */
 export function useCreateCase() {
-  const { getToken } = useAuth();
+  const service = useCasesService();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data) => {
-      const service = new CasesService(getToken);
-      return service.create(data);
-    },
-    onSuccess: (_, { applicant_id }) => {
+    mutationFn: (data) => service.create(data),
+    onSuccess: (newCase, { applicant_id }) => {
+      queryClient.setQueryData(caseKeys.detail(newCase.id), newCase);
       queryClient.invalidateQueries({ queryKey: caseKeys.lists() });
       if (applicant_id) {
-        queryClient.invalidateQueries({
-          queryKey: applicantKeys.detail(applicant_id),
-        });
+        queryClient.invalidateQueries({ queryKey: applicantKeys.detail(applicant_id) });
       }
     },
   });
 }
 
-/**
- * Hook to update a case
- * @returns Mutation object with mutate/mutateAsync functions
- */
 export function useUpdateCase() {
-  const { getToken } = useAuth();
+  const service = useCasesService();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, data }) => {
-      const service = new CasesService(getToken);
-      return service.update(id, data);
+    mutationFn: ({ id, data }) => service.update(id, data),
+
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: caseKeys.detail(id) });
+
+      const previousCase = queryClient.getQueryData(caseKeys.detail(id));
+
+      if (previousCase) {
+        queryClient.setQueryData(caseKeys.detail(id), {
+          ...previousCase,
+          ...data,
+          updated_at: new Date().toISOString(),
+        });
+      }
+
+      return { previousCase };
     },
-    onSuccess: (_, { id }) => {
+
+    onError: (err, { id }, context) => {
+      if (context?.previousCase) {
+        queryClient.setQueryData(caseKeys.detail(id), context.previousCase);
+      }
+    },
+
+    onSettled: (_, __, { id }) => {
       queryClient.invalidateQueries({ queryKey: caseKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: caseKeys.lists() });
     },
   });
 }
 
-/**
- * Hook to resolve a case
- * @returns Mutation object with mutate/mutateAsync functions
- */
 export function useResolveCase() {
-  const { getToken } = useAuth();
+  const service = useCasesService();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, resolution, notes }) => {
-      const service = new CasesService(getToken);
-      return service.resolve(id, resolution, notes);
+    mutationFn: ({ id, resolution, notes }) => service.resolve(id, resolution, notes),
+
+    onMutate: async ({ id, resolution }) => {
+      await queryClient.cancelQueries({ queryKey: caseKeys.detail(id) });
+
+      const previousCase = queryClient.getQueryData(caseKeys.detail(id));
+
+      if (previousCase) {
+        queryClient.setQueryData(caseKeys.detail(id), {
+          ...previousCase,
+          status: 'resolved',
+          resolution,
+          resolved_at: new Date().toISOString(),
+        });
+      }
+
+      return { previousCase };
     },
-    onSuccess: (_, { id, applicantId }) => {
+
+    onError: (err, { id }, context) => {
+      if (context?.previousCase) {
+        queryClient.setQueryData(caseKeys.detail(id), context.previousCase);
+      }
+    },
+
+    onSettled: (_, __, { id, applicantId }) => {
       queryClient.invalidateQueries({ queryKey: caseKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: caseKeys.lists() });
       if (applicantId) {
-        queryClient.invalidateQueries({
-          queryKey: applicantKeys.detail(applicantId),
-        });
+        queryClient.invalidateQueries({ queryKey: applicantKeys.detail(applicantId) });
       }
     },
   });
 }
 
-/**
- * Hook to add a note to a case
- * @returns Mutation object with mutate/mutateAsync functions
- */
 export function useAddCaseNote() {
-  const { getToken } = useAuth();
+  const service = useCasesService();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, content }) => {
-      const service = new CasesService(getToken);
-      return service.addNote(id, content);
+    mutationFn: ({ id, content }) => service.addNote(id, content),
+
+    // Optimistic update - add note immediately
+    onMutate: async ({ id, content }) => {
+      await queryClient.cancelQueries({ queryKey: caseKeys.detail(id) });
+
+      const previousCase = queryClient.getQueryData(caseKeys.detail(id));
+
+      if (previousCase) {
+        const optimisticNote = {
+          id: `temp-${Date.now()}`,
+          content,
+          created_at: new Date().toISOString(),
+          created_by: 'current-user', // Will be replaced by server response
+        };
+
+        queryClient.setQueryData(caseKeys.detail(id), {
+          ...previousCase,
+          notes: [...(previousCase.notes || []), optimisticNote],
+        });
+      }
+
+      return { previousCase };
     },
-    onSuccess: (_, { id }) => {
+
+    onError: (err, { id }, context) => {
+      if (context?.previousCase) {
+        queryClient.setQueryData(caseKeys.detail(id), context.previousCase);
+      }
+    },
+
+    onSettled: (_, __, { id }) => {
       queryClient.invalidateQueries({ queryKey: caseKeys.detail(id) });
     },
   });
 }
 
-/**
- * Hook to assign a case to a user
- * @returns Mutation object with mutate/mutateAsync functions
- */
 export function useAssignCase() {
-  const { getToken } = useAuth();
+  const service = useCasesService();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, userId }) => {
-      const service = new CasesService(getToken);
-      return service.assign(id, userId);
+    mutationFn: ({ id, userId }) => service.assign(id, userId),
+
+    onMutate: async ({ id, userId }) => {
+      await queryClient.cancelQueries({ queryKey: caseKeys.detail(id) });
+
+      const previousCase = queryClient.getQueryData(caseKeys.detail(id));
+
+      if (previousCase) {
+        queryClient.setQueryData(caseKeys.detail(id), {
+          ...previousCase,
+          assigned_to: userId,
+        });
+      }
+
+      return { previousCase };
     },
-    onSuccess: (_, { id }) => {
+
+    onError: (err, { id }, context) => {
+      if (context?.previousCase) {
+        queryClient.setQueryData(caseKeys.detail(id), context.previousCase);
+      }
+    },
+
+    onSettled: (_, __, { id }) => {
       queryClient.invalidateQueries({ queryKey: caseKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: caseKeys.lists() });
       queryClient.invalidateQueries({ queryKey: caseKeys.myCases({}) });
@@ -183,11 +248,32 @@ export function useAssignCase() {
   });
 }
 
-/**
- * Hook to fetch cases for a specific applicant
- * @param {string} applicantId - Applicant ID
- * @param {Object} options - Additional React Query options
- */
 export function useApplicantCases(applicantId, options = {}) {
   return useCases({ applicant_id: applicantId }, options);
+}
+
+/**
+ * Hook to get case counts by status (for dashboard)
+ */
+export function useCaseCounts() {
+  const service = useCasesService();
+
+  return useQuery({
+    queryKey: [...caseKeys.all, 'counts'],
+    queryFn: async ({ signal }) => {
+      const [open, inProgress, resolved] = await Promise.all([
+        service.list({ status: 'open', limit: 0 }, { signal }),
+        service.list({ status: 'in_progress', limit: 0 }, { signal }),
+        service.list({ status: 'resolved', limit: 0 }, { signal }),
+      ]);
+
+      return {
+        open: open.total,
+        in_progress: inProgress.total,
+        resolved: resolved.total,
+        total: open.total + inProgress.total + resolved.total,
+      };
+    },
+    staleTime: 60000,
+  });
 }

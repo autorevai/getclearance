@@ -15,9 +15,9 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Show loading screen while checking auth state
+  // Show skeleton loading screen while checking auth state
   if (isLoading) {
-    return <LoadingScreen message="Checking authentication..." />;
+    return <LoadingScreen message="Checking authentication..." variant="skeleton" />;
   }
 
   // Show login page if not authenticated

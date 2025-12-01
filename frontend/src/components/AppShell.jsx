@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -45,6 +45,8 @@ export default function AppShell({ children, currentPage, onNavigate, user, onLo
   const [darkMode, setDarkMode] = useState(true);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef(null);
+  const userMenuButtonRef = useRef(null);
 
   // Get user display info
   const userName = user?.name || user?.email || 'User';
@@ -55,6 +57,94 @@ export default function AppShell({ children, currentPage, onNavigate, user, onLo
     .toUpperCase()
     .slice(0, 2);
   const userPicture = user?.picture;
+
+  // Get role from Auth0 user metadata or claims
+  const userRole = user?.['https://getclearance.dev/roles']?.[0]
+    || user?.role
+    || (user?.email?.includes('@getclearance') ? 'Admin' : 'User');
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(event.target) &&
+        userMenuButtonRef.current &&
+        !userMenuButtonRef.current.contains(event.target)
+      ) {
+        setUserMenuOpen(false);
+      }
+    }
+
+    if (userMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [userMenuOpen]);
+
+  // Close dropdown on Escape key
+  useEffect(() => {
+    function handleEscapeKey(event) {
+      if (event.key === 'Escape') {
+        setUserMenuOpen(false);
+        setAiPanelOpen(false);
+      }
+    }
+
+    document.addEventListener('keydown', handleEscapeKey);
+    return () => document.removeEventListener('keydown', handleEscapeKey);
+  }, []);
+
+  // Handle keyboard navigation in dropdown
+  const handleDropdownKeyDown = useCallback((event) => {
+    if (!userMenuOpen) return;
+
+    const items = userMenuRef.current?.querySelectorAll('[role="menuitem"]');
+    if (!items?.length) return;
+
+    const currentIndex = Array.from(items).findIndex(item => item === document.activeElement);
+
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        const nextIndex = currentIndex < items.length - 1 ? currentIndex + 1 : 0;
+        items[nextIndex].focus();
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        const prevIndex = currentIndex > 0 ? currentIndex - 1 : items.length - 1;
+        items[prevIndex].focus();
+        break;
+      case 'Home':
+        event.preventDefault();
+        items[0].focus();
+        break;
+      case 'End':
+        event.preventDefault();
+        items[items.length - 1].focus();
+        break;
+      case 'Tab':
+        setUserMenuOpen(false);
+        break;
+      default:
+        break;
+    }
+  }, [userMenuOpen]);
+
+  // Focus first item when dropdown opens
+  useEffect(() => {
+    if (userMenuOpen && userMenuRef.current) {
+      const firstItem = userMenuRef.current.querySelector('[role="menuitem"]');
+      if (firstItem) {
+        setTimeout(() => firstItem.focus(), 0);
+      }
+    }
+  }, [userMenuOpen]);
 
   return (
     <div className={`app-shell ${darkMode ? 'dark' : 'light'}`}>
@@ -637,34 +727,85 @@ export default function AppShell({ children, currentPage, onNavigate, user, onLo
               {darkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
             
-            <div className="user-menu" onClick={() => setUserMenuOpen(!userMenuOpen)}>
-              <div className="user-avatar">
-                {userPicture ? (
-                  <img src={userPicture} alt={userName} />
-                ) : (
-                  userInitials
-                )}
-              </div>
-              <div className="user-info">
-                <span className="user-name">{userName.split(' ')[0]}</span>
-                <span className="user-role">Admin</span>
-              </div>
-              <ChevronDown size={16} style={{ transform: userMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            <div className="user-menu-container" style={{ position: 'relative' }}>
+              <button
+                ref={userMenuButtonRef}
+                className="user-menu"
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setUserMenuOpen(true);
+                  }
+                }}
+                aria-haspopup="menu"
+                aria-expanded={userMenuOpen}
+                aria-label={`User menu for ${userName}`}
+                style={{ background: 'none', border: 'none', width: '100%' }}
+              >
+                <div className="user-avatar" aria-hidden="true">
+                  {userPicture ? (
+                    <img src={userPicture} alt="" />
+                  ) : (
+                    userInitials
+                  )}
+                </div>
+                <div className="user-info">
+                  <span className="user-name">{userName.split(' ')[0]}</span>
+                  <span className="user-role">{userRole}</span>
+                </div>
+                <ChevronDown
+                  size={16}
+                  aria-hidden="true"
+                  style={{ transform: userMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
+                />
+              </button>
 
               {userMenuOpen && (
-                <div className="user-dropdown">
-                  <div className="user-dropdown-header">
+                <div
+                  ref={userMenuRef}
+                  className="user-dropdown"
+                  role="menu"
+                  aria-label="User menu"
+                  onKeyDown={handleDropdownKeyDown}
+                >
+                  <div className="user-dropdown-header" aria-hidden="true">
                     <div className="user-name">{userName}</div>
                     <div className="user-dropdown-email">{user?.email}</div>
                   </div>
-                  <div className="user-dropdown-item" onClick={(e) => { e.stopPropagation(); onNavigate?.('settings'); setUserMenuOpen(false); }}>
-                    <Settings size={16} />
+                  <button
+                    className="user-dropdown-item"
+                    role="menuitem"
+                    tabIndex={0}
+                    onClick={() => { onNavigate?.('settings'); setUserMenuOpen(false); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onNavigate?.('settings');
+                        setUserMenuOpen(false);
+                      }
+                    }}
+                    style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', fontFamily: 'inherit' }}
+                  >
+                    <Settings size={16} aria-hidden="true" />
                     <span>Settings</span>
-                  </div>
-                  <div className="user-dropdown-item danger" onClick={(e) => { e.stopPropagation(); onLogout?.(); }}>
-                    <LogOut size={16} />
+                  </button>
+                  <button
+                    className="user-dropdown-item danger"
+                    role="menuitem"
+                    tabIndex={0}
+                    onClick={() => onLogout?.()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onLogout?.();
+                      }
+                    }}
+                    style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', fontFamily: 'inherit' }}
+                  >
+                    <LogOut size={16} aria-hidden="true" />
                     <span>Sign out</span>
-                  </div>
+                  </button>
                 </div>
               )}
             </div>

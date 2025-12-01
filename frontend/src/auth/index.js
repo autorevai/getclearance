@@ -7,3 +7,4 @@
 export { AuthProvider } from './AuthProvider';
 export { ProtectedRoute } from './ProtectedRoute';
 export { useAuth } from './useAuth';
+export { default as AuthErrorBoundary } from './AuthErrorBoundary';

@@ -1,15 +1,18 @@
 /**
  * React Query hooks for Screening
  *
- * Provides data fetching, caching, and mutation hooks for AML screening operations.
+ * Production-grade hooks with:
+ * - Optimistic updates for hit resolution
+ * - Polling for check completion
+ * - AI suggestion caching
  */
 
+import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth';
 import { ScreeningService } from '../services';
 import { applicantKeys } from './useApplicants';
 
-// Query key factory
 export const screeningKeys = {
   all: ['screening'],
   checks: () => [...screeningKeys.all, 'checks'],
@@ -19,140 +22,159 @@ export const screeningKeys = {
   hitSuggestion: (hitId) => [...screeningKeys.hits(), hitId, 'suggestion'],
 };
 
-/**
- * Hook to fetch list of screening checks
- * @param {Object} filters - Filter parameters (applicant_id, status, limit, offset)
- * @param {Object} options - Additional React Query options
- */
-export function useScreeningChecks(filters = {}, options = {}) {
+function useScreeningService() {
   const { getToken } = useAuth();
+  return useMemo(() => new ScreeningService(getToken), [getToken]);
+}
+
+export function useScreeningChecks(filters = {}, options = {}) {
+  const service = useScreeningService();
 
   return useQuery({
     queryKey: screeningKeys.checkList(filters),
-    queryFn: async () => {
-      const service = new ScreeningService(getToken);
-      return service.listChecks(filters);
-    },
+    queryFn: ({ signal }) => service.listChecks(filters, { signal }),
+    staleTime: 30000,
     ...options,
   });
 }
 
-/**
- * Hook to fetch a single screening check with all hits
- * @param {string} id - Check ID
- * @param {Object} options - Additional React Query options
- */
 export function useScreeningCheck(id, options = {}) {
-  const { getToken } = useAuth();
+  const service = useScreeningService();
 
   return useQuery({
     queryKey: screeningKeys.checkDetail(id),
-    queryFn: async () => {
-      const service = new ScreeningService(getToken);
-      return service.getCheck(id);
-    },
+    queryFn: ({ signal }) => service.getCheck(id, { signal }),
     enabled: !!id,
+    staleTime: 30000,
     ...options,
   });
 }
 
 /**
- * Hook to get AI suggestion for a screening hit
- * @param {string} hitId - Hit ID
- * @param {Object} options - Additional React Query options
+ * Poll a screening check until complete
  */
+export function useScreeningCheckPolling(id, options = {}) {
+  const service = useScreeningService();
+  const { enabled = true, onComplete } = options;
+
+  return useQuery({
+    queryKey: [...screeningKeys.checkDetail(id), 'polling'],
+    queryFn: ({ signal }) => service.getCheck(id, { signal }),
+    enabled: !!id && enabled,
+    refetchInterval: (query) => {
+      const check = query.state.data;
+      if (!check) return 2000;
+
+      if (check.status === 'completed' || check.status === 'failed') {
+        if (onComplete) onComplete(check);
+        return false;
+      }
+      return 2000;
+    },
+    staleTime: 0,
+  });
+}
+
 export function useHitSuggestion(hitId, options = {}) {
-  const { getToken } = useAuth();
+  const service = useScreeningService();
 
   return useQuery({
     queryKey: screeningKeys.hitSuggestion(hitId),
-    queryFn: async () => {
-      const service = new ScreeningService(getToken);
-      return service.getHitSuggestion(hitId);
-    },
+    queryFn: ({ signal }) => service.getHitSuggestion(hitId, { signal }),
     enabled: !!hitId,
-    staleTime: 60000, // Suggestions are stable for 1 minute
+    staleTime: 300000, // Suggestions are stable for 5 minutes
     ...options,
   });
 }
 
-/**
- * Hook to run a new screening check
- * @returns Mutation object with mutate/mutateAsync functions
- */
 export function useRunScreening() {
-  const { getToken } = useAuth();
+  const service = useScreeningService();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data) => {
-      const service = new ScreeningService(getToken);
-      return service.runCheck(data);
-    },
+    mutationFn: (data) => service.runCheck(data),
     onSuccess: (result, { applicant_id }) => {
       queryClient.invalidateQueries({ queryKey: screeningKeys.checks() });
       if (applicant_id) {
-        queryClient.invalidateQueries({
-          queryKey: applicantKeys.detail(applicant_id),
-        });
+        queryClient.invalidateQueries({ queryKey: applicantKeys.detail(applicant_id) });
       }
     },
   });
 }
 
-/**
- * Hook to resolve a screening hit
- * @returns Mutation object with mutate/mutateAsync functions
- */
 export function useResolveHit() {
-  const { getToken } = useAuth();
+  const service = useScreeningService();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ hitId, resolution, notes }) => {
-      const service = new ScreeningService(getToken);
-      return service.resolveHit(hitId, resolution, notes);
-    },
-    onSuccess: (_, { checkId, applicantId }) => {
-      queryClient.invalidateQueries({ queryKey: screeningKeys.checks() });
-      if (checkId) {
-        queryClient.invalidateQueries({
-          queryKey: screeningKeys.checkDetail(checkId),
+    mutationFn: ({ hitId, resolution, notes }) =>
+      service.resolveHit(hitId, resolution, notes),
+
+    // Optimistic update
+    onMutate: async ({ hitId, resolution, checkId }) => {
+      if (!checkId) return {};
+
+      await queryClient.cancelQueries({ queryKey: screeningKeys.checkDetail(checkId) });
+
+      const previousCheck = queryClient.getQueryData(screeningKeys.checkDetail(checkId));
+
+      if (previousCheck?.hits) {
+        const updatedHits = previousCheck.hits.map((hit) =>
+          hit.id === hitId
+            ? { ...hit, resolution, resolved_at: new Date().toISOString() }
+            : hit
+        );
+
+        queryClient.setQueryData(screeningKeys.checkDetail(checkId), {
+          ...previousCheck,
+          hits: updatedHits,
         });
       }
+
+      return { previousCheck };
+    },
+
+    onError: (err, { checkId }, context) => {
+      if (context?.previousCheck) {
+        queryClient.setQueryData(screeningKeys.checkDetail(checkId), context.previousCheck);
+      }
+    },
+
+    onSettled: (_, __, { checkId, applicantId }) => {
+      queryClient.invalidateQueries({ queryKey: screeningKeys.checks() });
+      if (checkId) {
+        queryClient.invalidateQueries({ queryKey: screeningKeys.checkDetail(checkId) });
+      }
       if (applicantId) {
-        queryClient.invalidateQueries({
-          queryKey: applicantKeys.detail(applicantId),
-        });
+        queryClient.invalidateQueries({ queryKey: applicantKeys.detail(applicantId) });
       }
     },
   });
 }
 
-/**
- * Hook to batch resolve multiple hits
- * @returns Mutation object
- */
 export function useBatchResolveHits() {
-  const { getToken } = useAuth();
+  const service = useScreeningService();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (resolutions) => {
-      const service = new ScreeningService(getToken);
-      return service.batchResolve(resolutions);
+      const results = await Promise.allSettled(
+        resolutions.map(({ hitId, resolution, notes }) =>
+          service.resolveHit(hitId, resolution, notes)
+        )
+      );
+
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.filter((r) => r.status === 'rejected').length;
+
+      return { succeeded, failed, total: resolutions.length };
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: screeningKeys.all });
     },
   });
 }
 
-/**
- * Hook to fetch screening checks for a specific applicant
- * @param {string} applicantId - Applicant ID
- * @param {Object} options - Additional React Query options
- */
 export function useApplicantScreening(applicantId, options = {}) {
   return useScreeningChecks({ applicant_id: applicantId }, options);
 }

@@ -1,6 +1,18 @@
-import React from 'react';
-import { Shield, ArrowRight, Lock, CheckCircle } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { Shield, ArrowRight, Lock, CheckCircle, AlertCircle } from 'lucide-react';
 import { useAuth } from '../auth';
+
+// CSS keyframes injected once via useEffect
+const KEYFRAMES_ID = 'getclearance-keyframes';
+const keyframesCSS = `
+  @keyframes gc-spin {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes gc-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+`;
 
 /**
  * LoginPage component displays the login screen with branding and Auth0 login button.
@@ -10,73 +22,106 @@ import { useAuth } from '../auth';
  * - Feature highlights
  * - Auth0 Universal Login trigger
  * - Loading state during login
+ * - Error handling with retry
+ * - Full accessibility support
  */
 export function LoginPage() {
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, error } = useAuth();
+
+  // Inject keyframes CSS once on mount
+  useEffect(() => {
+    if (!document.getElementById(KEYFRAMES_ID)) {
+      const styleSheet = document.createElement('style');
+      styleSheet.id = KEYFRAMES_ID;
+      styleSheet.textContent = keyframesCSS;
+      document.head.appendChild(styleSheet);
+    }
+  }, []);
 
   const handleLogin = () => {
     login();
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleLogin();
+    }
+  };
+
   return (
-    <div style={styles.container}>
+    <div style={styles.container} role="main" aria-labelledby="login-title">
       <div style={styles.loginCard}>
         {/* Logo and Branding */}
         <div style={styles.logoSection}>
-          <div style={styles.logoIcon}>
+          <div style={styles.logoIcon} aria-hidden="true">
             <Shield size={32} color="#10b981" />
           </div>
-          <h1 style={styles.logoText}>GetClearance</h1>
+          <h1 id="login-title" style={styles.logoText}>GetClearance</h1>
           <p style={styles.tagline}>AI-Native KYC/AML Compliance Platform</p>
         </div>
 
         {/* Feature highlights */}
-        <div style={styles.features}>
-          <div style={styles.feature}>
-            <CheckCircle size={16} color="#10b981" />
+        <ul style={styles.features} aria-label="Platform features">
+          <li style={styles.feature}>
+            <CheckCircle size={16} color="#10b981" aria-hidden="true" />
             <span>Automated identity verification</span>
-          </div>
-          <div style={styles.feature}>
-            <CheckCircle size={16} color="#10b981" />
+          </li>
+          <li style={styles.feature}>
+            <CheckCircle size={16} color="#10b981" aria-hidden="true" />
             <span>Real-time AML screening</span>
-          </div>
-          <div style={styles.feature}>
-            <CheckCircle size={16} color="#10b981" />
+          </li>
+          <li style={styles.feature}>
+            <CheckCircle size={16} color="#10b981" aria-hidden="true" />
             <span>AI-powered risk assessment</span>
+          </li>
+        </ul>
+
+        {/* Error message */}
+        {error && (
+          <div style={styles.errorBox} role="alert" aria-live="polite">
+            <AlertCircle size={16} color="#ef4444" aria-hidden="true" />
+            <span>{error.message || 'Authentication failed. Please try again.'}</span>
           </div>
-        </div>
+        )}
 
         {/* Login Button */}
         <button
           onClick={handleLogin}
+          onKeyDown={handleKeyDown}
           disabled={isLoading}
-          style={styles.loginButton}
+          style={{
+            ...styles.loginButton,
+            ...(isLoading ? styles.loginButtonDisabled : {}),
+          }}
+          aria-busy={isLoading}
+          aria-describedby="security-note"
         >
           {isLoading ? (
             <>
-              <div style={styles.spinner} />
+              <span style={styles.spinner} aria-hidden="true" />
               <span>Connecting...</span>
             </>
           ) : (
             <>
-              <Lock size={18} />
+              <Lock size={18} aria-hidden="true" />
               <span>Sign in with Auth0</span>
-              <ArrowRight size={18} />
+              <ArrowRight size={18} aria-hidden="true" />
             </>
           )}
         </button>
 
         {/* Security note */}
-        <p style={styles.securityNote}>
-          <Lock size={12} />
+        <p id="security-note" style={styles.securityNote}>
+          <Lock size={12} aria-hidden="true" />
           <span>Secured with enterprise-grade authentication</span>
         </p>
       </div>
 
       {/* Footer */}
-      <div style={styles.footer}>
+      <footer style={styles.footer}>
         <p>Built with AI by GetClearance</p>
-      </div>
+      </footer>
     </div>
   );
 }
@@ -90,10 +135,12 @@ const styles = {
     justifyContent: 'center',
     background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
     padding: 20,
+    fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   },
   loginCard: {
     background: 'rgba(30, 41, 59, 0.8)',
     backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)', // Safari support
     borderRadius: 16,
     padding: 40,
     width: '100%',
@@ -127,6 +174,7 @@ const styles = {
     color: '#94a3b8',
     fontSize: 14,
     marginTop: 8,
+    margin: '8px 0 0 0',
   },
   features: {
     display: 'flex',
@@ -136,12 +184,26 @@ const styles = {
     padding: '20px 0',
     borderTop: '1px solid rgba(71, 85, 105, 0.3)',
     borderBottom: '1px solid rgba(71, 85, 105, 0.3)',
+    listStyle: 'none',
+    margin: '0 0 32px 0',
   },
   feature: {
     display: 'flex',
     alignItems: 'center',
     gap: 12,
     color: '#cbd5e1',
+    fontSize: 14,
+  },
+  errorBox: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '12px 16px',
+    marginBottom: 16,
+    background: 'rgba(239, 68, 68, 0.1)',
+    border: '1px solid rgba(239, 68, 68, 0.3)',
+    borderRadius: 8,
+    color: '#fca5a5',
     fontSize: 14,
   },
   loginButton: {
@@ -159,6 +221,11 @@ const styles = {
     justifyContent: 'center',
     gap: 10,
     transition: 'all 0.2s ease',
+    fontFamily: 'inherit',
+  },
+  loginButtonDisabled: {
+    opacity: 0.7,
+    cursor: 'not-allowed',
   },
   spinner: {
     width: 18,
@@ -166,7 +233,8 @@ const styles = {
     border: '2px solid rgba(255, 255, 255, 0.3)',
     borderTopColor: '#fff',
     borderRadius: '50%',
-    animation: 'spin 0.8s linear infinite',
+    animation: 'gc-spin 0.8s linear infinite',
+    display: 'inline-block',
   },
   securityNote: {
     display: 'flex',
@@ -176,6 +244,7 @@ const styles = {
     marginTop: 20,
     color: '#64748b',
     fontSize: 12,
+    margin: '20px 0 0 0',
   },
   footer: {
     marginTop: 40,
@@ -183,14 +252,5 @@ const styles = {
     fontSize: 12,
   },
 };
-
-// Add keyframes for spinner animation
-const styleSheet = document.createElement('style');
-styleSheet.textContent = `
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-`;
-document.head.appendChild(styleSheet);
 
 export default LoginPage;

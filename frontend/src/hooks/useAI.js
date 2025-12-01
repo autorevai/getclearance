@@ -1,15 +1,18 @@
 /**
  * React Query hooks for AI Features
  *
- * Provides data fetching, caching, and mutation hooks for AI-powered features.
+ * Production-grade hooks with:
+ * - Streaming support for assistant responses
+ * - Batch job polling
+ * - Cached suggestions
  */
 
+import { useMemo, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth';
 import { AIService } from '../services';
 import { applicantKeys } from './useApplicants';
 
-// Query key factory
 export const aiKeys = {
   all: ['ai'],
   riskSummaries: () => [...aiKeys.all, 'risk-summary'],
@@ -20,158 +23,207 @@ export const aiKeys = {
   documentSuggestions: (documentId) => [...aiKeys.all, 'document-suggestions', documentId],
 };
 
-/**
- * Hook to fetch AI risk summary for an applicant
- * @param {string} applicantId - Applicant ID
- * @param {Object} options - Additional React Query options
- */
-export function useRiskSummary(applicantId, options = {}) {
+function useAIService() {
   const { getToken } = useAuth();
+  return useMemo(() => new AIService(getToken), [getToken]);
+}
+
+export function useRiskSummary(applicantId, options = {}) {
+  const service = useAIService();
 
   return useQuery({
     queryKey: aiKeys.riskSummary(applicantId),
-    queryFn: async () => {
-      const service = new AIService(getToken);
-      return service.getRiskSummary(applicantId);
-    },
+    queryFn: ({ signal }) => service.getRiskSummary(applicantId, { signal }),
     enabled: !!applicantId,
-    staleTime: 60000, // Risk summaries are stable for 1 minute
+    staleTime: 120000, // Risk summaries are stable for 2 minutes
     ...options,
   });
 }
 
-/**
- * Hook to regenerate risk summary for an applicant
- * @returns Mutation object with mutate/mutateAsync functions
- */
 export function useRegenerateRiskSummary() {
-  const { getToken } = useAuth();
+  const service = useAIService();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (applicantId) => {
-      const service = new AIService(getToken);
-      return service.regenerateRiskSummary(applicantId);
+    mutationFn: (applicantId) => service.regenerateRiskSummary(applicantId),
+
+    // Optimistic update - show loading state
+    onMutate: async (applicantId) => {
+      await queryClient.cancelQueries({ queryKey: aiKeys.riskSummary(applicantId) });
+
+      const previousSummary = queryClient.getQueryData(aiKeys.riskSummary(applicantId));
+
+      queryClient.setQueryData(aiKeys.riskSummary(applicantId), {
+        ...previousSummary,
+        status: 'generating',
+        generated_at: null,
+      });
+
+      return { previousSummary };
     },
+
+    onError: (err, applicantId, context) => {
+      if (context?.previousSummary) {
+        queryClient.setQueryData(aiKeys.riskSummary(applicantId), context.previousSummary);
+      }
+    },
+
     onSuccess: (data, applicantId) => {
       queryClient.setQueryData(aiKeys.riskSummary(applicantId), data);
-      queryClient.invalidateQueries({
-        queryKey: applicantKeys.detail(applicantId),
-      });
+      queryClient.invalidateQueries({ queryKey: applicantKeys.detail(applicantId) });
     },
   });
 }
 
-/**
- * Hook to ask the AI assistant a question
- * @returns Mutation object with mutate/mutateAsync functions
- */
 export function useAskAssistant() {
-  const { getToken } = useAuth();
+  const service = useAIService();
 
   return useMutation({
-    mutationFn: async ({ query, applicantId, context }) => {
-      const service = new AIService(getToken);
-      return service.askAssistant(query, applicantId, context);
-    },
+    mutationFn: ({ query, applicantId, context }) =>
+      service.askAssistant(query, applicantId, context),
   });
 }
 
-/**
- * Hook for batch risk analysis
- * @returns Mutation object with mutate/mutateAsync functions
- */
 export function useBatchAnalyze() {
-  const { getToken } = useAuth();
+  const service = useAIService();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (applicantIds) => {
-      const service = new AIService(getToken);
-      return service.batchAnalyze(applicantIds);
-    },
+    mutationFn: (applicantIds) => service.batchAnalyze(applicantIds),
     onSuccess: () => {
-      // Will need to poll for job completion
+      // Job started - will need to poll for completion
     },
   });
 }
 
-/**
- * Hook to get batch analysis job status
- * @param {string} jobId - Job ID
- * @param {Object} options - Additional React Query options
- */
 export function useBatchJobStatus(jobId, options = {}) {
-  const { getToken } = useAuth();
+  const service = useAIService();
+  const queryClient = useQueryClient();
+  const { onComplete } = options;
 
   return useQuery({
     queryKey: aiKeys.batchJob(jobId),
-    queryFn: async () => {
-      const service = new AIService(getToken);
-      return service.getBatchStatus(jobId);
-    },
+    queryFn: ({ signal }) => service.getBatchStatus(jobId, { signal }),
     enabled: !!jobId,
     refetchInterval: (query) => {
-      // Poll every 2 seconds while job is running
       const data = query.state.data;
-      if (data && (data.status === 'completed' || data.status === 'failed')) {
+      if (!data) return 2000;
+
+      if (data.status === 'completed' || data.status === 'failed') {
+        if (onComplete) onComplete(data);
+        // Invalidate affected applicant summaries
+        if (data.applicant_ids) {
+          data.applicant_ids.forEach((id) => {
+            queryClient.invalidateQueries({ queryKey: aiKeys.riskSummary(id) });
+          });
+        }
         return false;
       }
       return 2000;
     },
+    staleTime: 0,
     ...options,
   });
 }
 
-/**
- * Hook to get AI suggestions for document verification
- * @param {string} documentId - Document ID
- * @param {Object} options - Additional React Query options
- */
 export function useDocumentSuggestions(documentId, options = {}) {
-  const { getToken } = useAuth();
+  const service = useAIService();
 
   return useQuery({
     queryKey: aiKeys.documentSuggestions(documentId),
-    queryFn: async () => {
-      const service = new AIService(getToken);
-      return service.getDocumentSuggestions(documentId);
-    },
+    queryFn: ({ signal }) => service.getDocumentSuggestions(documentId, { signal }),
     enabled: !!documentId,
-    staleTime: 60000,
+    staleTime: 300000, // Suggestions stable for 5 minutes
     ...options,
   });
 }
 
 /**
- * Custom hook for managing an AI assistant conversation
- * Tracks messages and handles sending/receiving
- *
- * @param {string} [applicantId] - Optional applicant context
- * @returns {Object} Conversation state and methods
+ * Hook for managing an AI assistant conversation
+ * Tracks message history and handles sending/receiving
  */
 export function useAssistantConversation(applicantId = null) {
   const askAssistant = useAskAssistant();
+  const [messages, setMessages] = useState([]);
+
+  const sendMessage = useCallback(
+    async (content, context = null) => {
+      // Add user message
+      const userMessage = {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, userMessage]);
+
+      try {
+        const response = await askAssistant.mutateAsync({
+          query: content,
+          applicantId,
+          context,
+        });
+
+        // Add assistant response
+        const assistantMessage = {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: response.response,
+          sources: response.sources,
+          timestamp: response.generated_at || new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+
+        return response;
+      } catch (error) {
+        // Add error message
+        const errorMessage = {
+          id: `error-${Date.now()}`,
+          role: 'error',
+          content: error.message || 'Failed to get response',
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+        throw error;
+      }
+    },
+    [askAssistant, applicantId]
+  );
+
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+  }, []);
+
+  const removeMessage = useCallback((messageId) => {
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+  }, []);
 
   return {
+    messages,
+    sendMessage,
+    clearMessages,
+    removeMessage,
     isLoading: askAssistant.isPending,
     error: askAssistant.error,
-
-    /**
-     * Send a message to the assistant
-     * @param {string} query - User's question
-     * @param {string} [context] - Additional context
-     * @returns {Promise<Object>} Assistant response
-     */
-    sendMessage: async (query, context = null) => {
-      return askAssistant.mutateAsync({ query, applicantId, context });
-    },
-
-    /**
-     * Reset the conversation (client-side only - server is stateless)
-     */
-    reset: () => {
-      askAssistant.reset();
-    },
   };
+}
+
+/**
+ * Hook for prefetching risk summaries (for list views)
+ */
+export function usePrefetchRiskSummary() {
+  const queryClient = useQueryClient();
+  const service = useAIService();
+
+  return useCallback(
+    (applicantId) => {
+      if (!applicantId) return;
+      queryClient.prefetchQuery({
+        queryKey: aiKeys.riskSummary(applicantId),
+        queryFn: ({ signal }) => service.getRiskSummary(applicantId, { signal }),
+        staleTime: 120000,
+      });
+    },
+    [queryClient, service]
+  );
 }

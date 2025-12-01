@@ -2,6 +2,7 @@
  * Applicants Service
  *
  * API methods for applicant management: CRUD, review, timeline, evidence.
+ * All methods support abort signals for request cancellation.
  */
 
 import { ApiClient, buildQueryString } from './api';
@@ -43,39 +44,43 @@ export class ApplicantsService {
   /**
    * List applicants with optional filters and pagination
    * @param {ApplicantFilters} params
+   * @param {Object} [options] - Request options (signal, timeout)
    * @returns {Promise<{items: Array, total: number, limit: number, offset: number}>}
    */
-  list(params = {}) {
+  list(params = {}, options = {}) {
     const query = buildQueryString(params);
-    return this.client.get(`/applicants${query}`);
+    return this.client.get(`/applicants${query}`, options);
   }
 
   /**
    * Get a single applicant by ID
    * @param {string} id - Applicant ID
+   * @param {Object} [options] - Request options
    * @returns {Promise<Object>}
    */
-  get(id) {
-    return this.client.get(`/applicants/${id}`);
+  get(id, options = {}) {
+    return this.client.get(`/applicants/${id}`, options);
   }
 
   /**
    * Create a new applicant
    * @param {ApplicantCreate} data
+   * @param {Object} [options] - Request options
    * @returns {Promise<Object>}
    */
-  create(data) {
-    return this.client.post('/applicants', data);
+  create(data, options = {}) {
+    return this.client.post('/applicants', data, options);
   }
 
   /**
    * Update an applicant
    * @param {string} id - Applicant ID
    * @param {Object} data - Fields to update
+   * @param {Object} [options] - Request options
    * @returns {Promise<Object>}
    */
-  update(id, data) {
-    return this.client.patch(`/applicants/${id}`, data);
+  update(id, data, options = {}) {
+    return this.client.patch(`/applicants/${id}`, data, options);
   }
 
   /**
@@ -84,50 +89,55 @@ export class ApplicantsService {
    * @param {'approve'|'reject'|'request_info'} decision
    * @param {string} [notes] - Review notes
    * @param {number} [riskOverride] - Override risk score
+   * @param {Object} [options] - Request options
    * @returns {Promise<Object>}
    */
-  review(id, decision, notes = null, riskOverride = null) {
+  review(id, decision, notes = null, riskOverride = null, options = {}) {
     const body = { decision };
     if (notes) body.notes = notes;
     if (riskOverride !== null) body.risk_score_override = riskOverride;
-    return this.client.post(`/applicants/${id}/review`, body);
+    return this.client.post(`/applicants/${id}/review`, body, options);
   }
 
   /**
    * Complete a verification step
    * @param {string} id - Applicant ID
    * @param {string} step - Step name (e.g., 'identity', 'documents', 'screening')
+   * @param {Object} [options] - Request options
    * @returns {Promise<Object>}
    */
-  completeStep(id, step) {
-    return this.client.post(`/applicants/${id}/steps/${step}/complete`, {});
+  completeStep(id, step, options = {}) {
+    return this.client.post(`/applicants/${id}/steps/${step}/complete`, {}, options);
   }
 
   /**
    * Get applicant timeline/audit log
    * @param {string} id - Applicant ID
+   * @param {Object} [options] - Request options
    * @returns {Promise<Array>}
    */
-  getTimeline(id) {
-    return this.client.get(`/applicants/${id}/timeline`);
+  getTimeline(id, options = {}) {
+    return this.client.get(`/applicants/${id}/timeline`, options);
   }
 
   /**
    * Download evidence pack (PDF) for an applicant
    * @param {string} id - Applicant ID
+   * @param {Object} [options] - Request options
    * @returns {Promise<Blob>}
    */
-  downloadEvidence(id) {
-    return this.client.requestBlob(`/applicants/${id}/evidence`);
+  downloadEvidence(id, options = {}) {
+    return this.client.requestBlob(`/applicants/${id}/evidence`, options);
   }
 
   /**
    * Get evidence preview (lighter version)
    * @param {string} id - Applicant ID
+   * @param {Object} [options] - Request options
    * @returns {Promise<Object>}
    */
-  getEvidencePreview(id) {
-    return this.client.get(`/applicants/${id}/evidence/preview`);
+  getEvidencePreview(id, options = {}) {
+    return this.client.get(`/applicants/${id}/evidence/preview`, options);
   }
 }
 
