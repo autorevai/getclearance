@@ -1,29 +1,32 @@
 /**
  * Hooks module exports
  *
- * Provides React Query hooks for all API operations.
- *
- * Usage:
- *   import { useApplicants, useReviewApplicant } from '../hooks';
- *
- *   function ApplicantsList() {
- *     const { data, isLoading, error } = useApplicants({ status: 'pending' });
- *     const reviewMutation = useReviewApplicant();
- *     ...
- *   }
+ * Production-grade React Query hooks for all API operations.
+ * Features:
+ * - Optimistic updates for instant UI feedback
+ * - Request deduplication and caching
+ * - Automatic retry with exponential backoff
+ * - Abort signal support for cleanup
+ * - Infinite scroll support
+ * - Prefetching for predictive loading
  */
 
 // Applicant hooks
 export {
   applicantKeys,
   useApplicants,
+  useInfiniteApplicants,
   useApplicant,
+  usePrefetchApplicant,
   useApplicantTimeline,
   useCreateApplicant,
   useUpdateApplicant,
   useReviewApplicant,
+  useBatchReviewApplicants,
   useCompleteStep,
   useDownloadEvidence,
+  useApplicantCounts,
+  useSearchApplicants,
 } from './useApplicants';
 
 // Document hooks
@@ -31,12 +34,14 @@ export {
   documentKeys,
   useDocument,
   useApplicantDocuments,
+  useDocumentPolling,
   useUploadDocument,
   useDirectUpload,
   useDeleteDocument,
   useAnalyzeDocument,
   useDocumentDownloadUrl,
   useDownloadDocument,
+  useBatchUpload,
 } from './useDocuments';
 
 // Screening hooks
@@ -44,6 +49,7 @@ export {
   screeningKeys,
   useScreeningChecks,
   useScreeningCheck,
+  useScreeningCheckPolling,
   useHitSuggestion,
   useRunScreening,
   useResolveHit,
@@ -55,6 +61,7 @@ export {
 export {
   caseKeys,
   useCases,
+  useInfiniteCases,
   useCase,
   useMyCases,
   useCreateCase,
@@ -63,6 +70,7 @@ export {
   useAddCaseNote,
   useAssignCase,
   useApplicantCases,
+  useCaseCounts,
 } from './useCases';
 
 // AI hooks
@@ -75,4 +83,5 @@ export {
   useBatchJobStatus,
   useDocumentSuggestions,
   useAssistantConversation,
+  usePrefetchRiskSummary,
 } from './useAI';

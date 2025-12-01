@@ -9,6 +9,7 @@ import ScreeningChecks from './components/ScreeningChecks';
 import CaseManagement from './components/CaseManagement';
 import LoginPage from './components/LoginPage';
 import LoadingScreen from './components/LoadingScreen';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 export default function App() {
   const { isAuthenticated, isLoading, user, logout } = useAuth0();
@@ -69,19 +70,21 @@ export default function App() {
       user={user}
       onLogout={handleLogout}
     >
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/applicants" element={<ApplicantsList />} />
-        <Route path="/applicants/:id" element={<ApplicantDetail />} />
-        <Route path="/companies" element={<CompaniesList />} />
-        <Route path="/screening" element={<ScreeningChecks />} />
-        <Route path="/cases" element={<CaseManagement />} />
-        <Route path="/integrations" element={<IntegrationsPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/billing" element={<BillingPage />} />
-        <Route path="/audit-log" element={<AuditLogPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/applicants" element={<ApplicantsList />} />
+          <Route path="/applicants/:id" element={<ApplicantDetail />} />
+          <Route path="/companies" element={<CompaniesList />} />
+          <Route path="/screening" element={<ScreeningChecks />} />
+          <Route path="/cases" element={<CaseManagement />} />
+          <Route path="/integrations" element={<IntegrationsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/billing" element={<BillingPage />} />
+          <Route path="/audit-log" element={<AuditLogPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </ErrorBoundary>
     </AppShell>
   );
 }

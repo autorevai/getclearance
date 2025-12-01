@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -30,8 +30,11 @@ import {
 } from 'lucide-react';
 import { useApplicant, useApplicantTimeline, useReviewApplicant, useDownloadEvidence } from '../hooks/useApplicants';
 import { useRiskSummary, useRegenerateRiskSummary } from '../hooks/useAI';
+import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut';
+import { useToast } from '../contexts/ToastContext';
 import { ApplicantDetailSkeleton } from './shared/LoadingSkeleton';
 import { ErrorState, NotFound } from './shared/ErrorState';
+import { ConfirmDialog } from './shared';
 
 const tabs = [
   { id: 'overview', label: 'Overview' },
@@ -100,7 +103,20 @@ const stepIcons = {
 export default function ApplicantDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const toast = useToast();
+
+  // Get active tab from URL, default to 'overview'
+  const activeTab = searchParams.get('tab') || 'overview';
+  const setActiveTab = (tab) => {
+    setSearchParams({ tab }, { replace: true });
+  };
+
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    action: null,
+  });
 
   // Fetch applicant data
   const { data: applicant, isLoading, error, refetch } = useApplicant(id);
@@ -116,31 +132,44 @@ export default function ApplicantDetail() {
   const downloadMutation = useDownloadEvidence();
   const regenerateRiskMutation = useRegenerateRiskSummary();
 
+  // Keyboard shortcuts
+  useKeyboardShortcut('a', () => {
+    if (applicant && applicant.review_status !== 'approved') {
+      setConfirmDialog({ isOpen: true, action: 'approve' });
+    }
+  });
+  useKeyboardShortcut('r', () => {
+    if (applicant && applicant.review_status !== 'rejected') {
+      setConfirmDialog({ isOpen: true, action: 'reject' });
+    }
+  });
+  useKeyboardShortcut('Escape', () => navigate('/applicants'), { enableOnFormElements: false });
+
   const handleBack = () => {
     navigate('/applicants');
   };
 
-  const handleApprove = async () => {
-    try {
-      await reviewMutation.mutateAsync({
-        id,
-        decision: 'approve',
-        notes: 'Approved via dashboard',
-      });
-    } catch (err) {
-      console.error('Failed to approve:', err);
-    }
+  const handleApproveClick = () => {
+    setConfirmDialog({ isOpen: true, action: 'approve' });
   };
 
-  const handleReject = async () => {
+  const handleRejectClick = () => {
+    setConfirmDialog({ isOpen: true, action: 'reject' });
+  };
+
+  const executeReviewAction = async () => {
+    const action = confirmDialog.action;
+    setConfirmDialog({ isOpen: false, action: null });
+
     try {
       await reviewMutation.mutateAsync({
         id,
-        decision: 'reject',
-        notes: 'Rejected via dashboard',
+        decision: action,
+        notes: `${action === 'approve' ? 'Approved' : 'Rejected'} via dashboard`,
       });
+      toast.success(`Applicant ${action === 'approve' ? 'approved' : 'rejected'} successfully`);
     } catch (err) {
-      console.error('Failed to reject:', err);
+      toast.error(`Failed to ${action} applicant: ${err.message}`);
     }
   };
 
@@ -154,16 +183,18 @@ export default function ApplicantDetail() {
         id,
         filename: `evidence_${displayName}.pdf`,
       });
+      toast.success('Evidence pack downloaded successfully');
     } catch (err) {
-      console.error('Failed to download evidence:', err);
+      toast.error(`Failed to download evidence: ${err.message}`);
     }
   };
 
   const handleRegenerateRiskSummary = async () => {
     try {
       await regenerateRiskMutation.mutateAsync(id);
+      toast.success('AI risk summary regenerated');
     } catch (err) {
-      console.error('Failed to regenerate risk summary:', err);
+      toast.error(`Failed to regenerate risk summary: ${err.message}`);
     }
   };
 
@@ -870,8 +901,10 @@ export default function ApplicantDetail() {
           </button>
           <button
             className="btn btn-danger"
-            onClick={handleReject}
+            onClick={handleRejectClick}
             disabled={reviewMutation.isPending || applicant.review_status === 'rejected'}
+            aria-label="Reject applicant (R)"
+            title="Reject (R)"
           >
             {reviewMutation.isPending && reviewMutation.variables?.decision === 'reject' ? (
               <Loader2 size={16} className="spinner" />
@@ -882,8 +915,10 @@ export default function ApplicantDetail() {
           </button>
           <button
             className="btn btn-success"
-            onClick={handleApprove}
+            onClick={handleApproveClick}
             disabled={reviewMutation.isPending || applicant.review_status === 'approved'}
+            aria-label="Approve applicant (A)"
+            title="Approve (A)"
           >
             {reviewMutation.isPending && reviewMutation.variables?.decision === 'approve' ? (
               <Loader2 size={16} className="spinner" />
@@ -1463,6 +1498,22 @@ export default function ApplicantDetail() {
           </div>
         </div>
       </div>
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.action === 'approve' ? 'Approve Applicant' : 'Reject Applicant'}
+        message={
+          confirmDialog.action === 'approve'
+            ? `Are you sure you want to approve ${applicant?.full_name || 'this applicant'}? This will complete their verification process.`
+            : `Are you sure you want to reject ${applicant?.full_name || 'this applicant'}? This action cannot be undone.`
+        }
+        confirmLabel={confirmDialog.action === 'approve' ? 'Approve' : 'Reject'}
+        variant={confirmDialog.action === 'approve' ? 'success' : 'danger'}
+        isLoading={reviewMutation.isPending}
+        onConfirm={executeReviewAction}
+        onCancel={() => setConfirmDialog({ isOpen: false, action: null })}
+      />
     </div>
   );
 }

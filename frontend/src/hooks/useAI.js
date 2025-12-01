@@ -86,13 +86,10 @@ export function useAskAssistant() {
 
 export function useBatchAnalyze() {
   const service = useAIService();
-  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (applicantIds) => service.batchAnalyze(applicantIds),
-    onSuccess: () => {
-      // Job started - will need to poll for completion
-    },
+    // Job started - caller should use useBatchJobStatus to poll for completion
   });
 }
 
