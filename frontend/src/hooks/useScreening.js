@@ -178,3 +178,37 @@ export function useBatchResolveHits() {
 export function useApplicantScreening(applicantId, options = {}) {
   return useScreeningChecks({ applicant_id: applicantId }, options);
 }
+
+export function useScreeningLists(options = {}) {
+  const service = useScreeningService();
+
+  return useQuery({
+    queryKey: [...screeningKeys.all, 'lists'],
+    queryFn: ({ signal }) => service.getLists({ signal }),
+    staleTime: 300000, // Lists are stable for 5 minutes
+    ...options,
+  });
+}
+
+export function useScreeningStats(options = {}) {
+  const service = useScreeningService();
+
+  return useQuery({
+    queryKey: [...screeningKeys.all, 'stats'],
+    queryFn: ({ signal }) => service.getStats({ signal }),
+    staleTime: 60000, // Stats refresh every minute
+    ...options,
+  });
+}
+
+export function useSyncScreeningLists() {
+  const service = useScreeningService();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => service.syncLists(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...screeningKeys.all, 'lists'] });
+    },
+  });
+}
