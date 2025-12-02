@@ -419,6 +419,13 @@ class DebugApplicantsResponse(BaseModel):
     sample: list[dict] = []
 
 
+class FullSeedResponse(BaseModel):
+    """Response from full seed endpoint."""
+    message: str
+    tenant_id: str
+    counts: dict
+
+
 @router.get(
     "/debug/applicants-count",
     response_model=DebugApplicantsResponse,
@@ -452,4 +459,214 @@ async def debug_applicants_count(
         tenant_id=tenant_id,
         count=count,
         sample=sample,
+    )
+
+
+@router.post(
+    "/seed-full-data",
+    response_model=FullSeedResponse,
+    summary="Seed full demo data including documents, screening, and cases",
+)
+async def seed_full_data(
+    tenant_id: str,
+    count: int = 10,
+    db: AsyncSession = Depends(get_db),
+) -> FullSeedResponse:
+    """
+    Seed comprehensive demo data for a tenant.
+
+    Creates:
+    - Applicants with full details
+    - Documents (1-3 per applicant)
+    - Screening checks and hits
+    - Cases and case notes
+    """
+    from app.models.applicant import Applicant
+    from app.models.document import Document
+    from app.models.screening import ScreeningList, ScreeningCheck, ScreeningHit
+    from app.models.case import Case, CaseNote
+
+    # Verify tenant exists
+    result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
+    tenant = result.scalar_one_or_none()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # Get user for assignments
+    result = await db.execute(select(User).where(User.tenant_id == tenant_id).limit(1))
+    user = result.scalar_one_or_none()
+    user_id = user.id if user else None
+
+    # Check existing applicant count
+    result = await db.execute(
+        select(func.count(Applicant.id)).where(Applicant.tenant_id == tenant_id)
+    )
+    existing_count = result.scalar() or 0
+
+    counts = {
+        "applicants": 0,
+        "documents": 0,
+        "screening_checks": 0,
+        "screening_hits": 0,
+        "cases": 0,
+        "case_notes": 0,
+    }
+
+    # Create screening list
+    screening_list = ScreeningList(
+        id=uuid4(),
+        source="opensanctions",
+        version_id=f"OS-{date.today().strftime('%Y%m%d')}-001",
+        list_type="combined",
+        entity_count=random.randint(50000, 100000),
+        published_at=datetime.now(timezone.utc) - timedelta(days=1),
+        fetched_at=datetime.now(timezone.utc),
+        checksum=secrets.token_hex(32),
+    )
+    db.add(screening_list)
+
+    case_counter = 1
+    DOC_TYPES = ["passport", "drivers_license", "national_id", "utility_bill"]
+    DOC_STATUSES = ["pending", "processing", "verified", "rejected"]
+    CASE_TYPES = ["sanctions", "pep", "fraud", "verification"]
+    CASE_PRIORITIES = ["low", "medium", "high", "critical"]
+
+    for i in range(count):
+        first_name = random.choice(FIRST_NAMES)
+        last_name = random.choice(LAST_NAMES)
+        status = random.choices(["pending", "in_progress", "review", "approved", "rejected"],
+                               weights=[0.1, 0.15, 0.15, 0.45, 0.15])[0]
+
+        risk_score = random.randint(0, 100)
+        if status == "rejected":
+            risk_score = random.randint(70, 100)
+        elif status == "approved":
+            risk_score = random.randint(0, 40)
+
+        flags = []
+        if risk_score > 60:
+            if random.random() > 0.5:
+                flags.append("pep")
+            if random.random() > 0.7:
+                flags.append("sanctions")
+
+        created_at = datetime.now(timezone.utc) - timedelta(days=random.randint(1, 60))
+
+        applicant = Applicant(
+            tenant_id=tenant_id,
+            external_id=f"full_{secrets.token_hex(6)}",
+            email=f"{first_name.lower()}.{last_name.lower()}{random.randint(1, 99)}@example.com",
+            phone=f"+1{random.randint(2000000000, 9999999999)}",
+            first_name=first_name,
+            last_name=last_name,
+            date_of_birth=date(random.randint(1960, 2000), random.randint(1, 12), random.randint(1, 28)),
+            nationality=random.choice(COUNTRIES),
+            country_of_residence=random.choice(COUNTRIES),
+            status=status,
+            risk_score=risk_score,
+            flags=flags,
+            source="full_seed",
+            created_at=created_at,
+        )
+        db.add(applicant)
+        counts["applicants"] += 1
+
+        # Add 1-3 documents
+        for _ in range(random.randint(1, 3)):
+            doc_type = random.choice(DOC_TYPES)
+            doc = Document(
+                id=uuid4(),
+                tenant_id=tenant_id,
+                applicant_id=applicant.id,
+                type=doc_type,
+                file_name=f"{doc_type}_{secrets.token_hex(4)}.pdf",
+                file_size=random.randint(100000, 5000000),
+                mime_type="application/pdf",
+                storage_path=f"{tenant_id}/applicants/{applicant.id}/{uuid4()}.pdf",
+                status=random.choice(DOC_STATUSES),
+                uploaded_at=created_at + timedelta(hours=random.randint(0, 24)),
+            )
+            db.add(doc)
+            counts["documents"] += 1
+
+        # Add screening check
+        has_hits = len(flags) > 0
+        check = ScreeningCheck(
+            id=uuid4(),
+            tenant_id=tenant_id,
+            applicant_id=applicant.id,
+            entity_type="individual",
+            screened_name=f"{first_name} {last_name}",
+            screened_dob=applicant.date_of_birth,
+            screened_country=applicant.nationality,
+            check_types=["sanctions", "pep", "adverse_media"],
+            status="hit" if has_hits else "clear",
+            hit_count=len(flags) if has_hits else 0,
+            started_at=created_at + timedelta(hours=1),
+            completed_at=created_at + timedelta(hours=2),
+        )
+        db.add(check)
+        counts["screening_checks"] += 1
+
+        # Add hits if flagged
+        for flag in flags:
+            if flag in ["pep", "sanctions"]:
+                hit = ScreeningHit(
+                    id=uuid4(),
+                    check_id=check.id,
+                    list_id=screening_list.id,
+                    list_source=screening_list.source,
+                    list_version_id=screening_list.version_id,
+                    hit_type=flag,
+                    matched_entity_id=f"os-{secrets.token_hex(8)}",
+                    matched_name=f"{random.choice(FIRST_NAMES)} {last_name}",
+                    confidence=random.uniform(60, 95),
+                    matched_fields=["name", "dob"] if random.random() > 0.5 else ["name"],
+                    match_type=random.choice(["true_positive", "potential_match", "false_positive"]),
+                    resolution_status=random.choice(["pending", "confirmed_true", "confirmed_false"]),
+                    created_at=check.completed_at,
+                )
+                db.add(hit)
+                counts["screening_hits"] += 1
+
+        # Add case for high-risk applicants (30% chance)
+        if risk_score > 50 and random.random() > 0.7:
+            case_status = random.choice(["open", "in_progress", "resolved", "closed"])
+            case = Case(
+                id=uuid4(),
+                tenant_id=tenant_id,
+                applicant_id=applicant.id,
+                case_number=f"CASE-2025-{case_counter:03d}",
+                type=random.choice(CASE_TYPES),
+                title=f"Review - {first_name} {last_name}",
+                description=f"Auto-generated case for risk review",
+                priority=random.choice(CASE_PRIORITIES),
+                status=case_status,
+                assignee_id=user_id if case_status in ["in_progress", "resolved"] else None,
+                source="screening_hit" if has_hits else "manual",
+                opened_at=created_at + timedelta(days=1),
+                resolved_at=created_at + timedelta(days=3) if case_status in ["resolved", "closed"] else None,
+            )
+            db.add(case)
+            counts["cases"] += 1
+            case_counter += 1
+
+            # Add case note
+            if case_status in ["in_progress", "resolved", "closed"]:
+                note = CaseNote(
+                    id=uuid4(),
+                    case_id=case.id,
+                    author_id=user_id,
+                    content=f"Investigation note: Reviewed risk factors. Status: {case_status}",
+                    created_at=created_at + timedelta(days=2),
+                )
+                db.add(note)
+                counts["case_notes"] += 1
+
+    await db.commit()
+
+    return FullSeedResponse(
+        message=f"Successfully seeded full data (tenant had {existing_count} applicants before)",
+        tenant_id=tenant_id,
+        counts=counts,
     )
