@@ -311,6 +311,75 @@ class DebugUserResponse(BaseModel):
     auth0_id: str | None = None
 
 
+class DebugTokenResponse(BaseModel):
+    """Response showing decoded token claims."""
+    raw_claims: dict
+    sub: str | None = None
+    email: str | None = None
+    tenant_id_claim: str | None = None
+    user_found_by_sub: bool = False
+    user_found_by_email: bool = False
+    user_tenant_id: str | None = None
+
+
+@router.get(
+    "/debug/token-claims",
+    response_model=DebugTokenResponse,
+    summary="Debug: Show token claims and user lookup result",
+)
+async def debug_token_claims(
+    authorization: str = Header(None),
+    db: AsyncSession = Depends(get_db),
+) -> DebugTokenResponse:
+    """
+    Debug endpoint to see what's in the token and if user can be found.
+    """
+    from jose import jwt
+
+    if not authorization or not authorization.startswith("Bearer "):
+        return DebugTokenResponse(raw_claims={"error": "No Bearer token provided"})
+
+    token = authorization.replace("Bearer ", "")
+
+    try:
+        # Decode without verification to see claims
+        claims = jwt.get_unverified_claims(token)
+    except Exception as e:
+        return DebugTokenResponse(raw_claims={"error": f"Failed to decode token: {str(e)}"})
+
+    sub = claims.get("sub")
+    email = claims.get("email") or claims.get("https://getclearance.dev/email")
+    tenant_id = claims.get("https://getclearance.dev/tenant_id") or claims.get("tenant_id")
+
+    # Try to find user by sub
+    user_by_sub = None
+    user_by_email = None
+
+    if sub:
+        result = await db.execute(
+            select(User).where(User.auth0_id == sub)
+        )
+        user_by_sub = result.scalar_one_or_none()
+
+    if email and not user_by_sub:
+        result = await db.execute(
+            select(User).where(User.email == email)
+        )
+        user_by_email = result.scalar_one_or_none()
+
+    user = user_by_sub or user_by_email
+
+    return DebugTokenResponse(
+        raw_claims=claims,
+        sub=sub,
+        email=email,
+        tenant_id_claim=tenant_id,
+        user_found_by_sub=user_by_sub is not None,
+        user_found_by_email=user_by_email is not None,
+        user_tenant_id=str(user.tenant_id) if user else None,
+    )
+
+
 @router.get(
     "/debug/user-lookup",
     response_model=DebugUserResponse,
