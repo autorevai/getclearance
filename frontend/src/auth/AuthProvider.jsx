@@ -40,10 +40,10 @@ export function AuthProvider({ children }) {
       authorizationParams={{
         redirect_uri: window.location.origin,
         audience: audience,
-        scope: 'openid profile email offline_access',
+        scope: 'openid profile email',
       }}
       cacheLocation="localstorage"
-      useRefreshTokens={true}
+      useRefreshTokens={false}
     >
       {children}
     </Auth0Provider>
