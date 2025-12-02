@@ -42,12 +42,49 @@ class TokenPayload(BaseModel):
     iss: str  # Issuer
     exp: int  # Expiration timestamp
     iat: int  # Issued at timestamp
-    
+
     # Custom claims (set in Auth0 Actions/Rules)
+    # Claims can be namespaced (https://getclearance.dev/tenant_id) or flat
     tenant_id: str | None = None
     email: str | None = None
     role: str | None = None
     permissions: list[str] = []
+
+    # Namespaced versions of claims (Auth0 Action format)
+    # These are populated via model_validator
+
+    model_config = {"extra": "allow"}  # Allow extra fields from JWT
+
+    @classmethod
+    def from_jwt_payload(cls, payload: dict) -> "TokenPayload":
+        """
+        Create TokenPayload from raw JWT payload, extracting namespaced claims.
+
+        Auth0 Actions add claims with namespace prefix:
+        - https://getclearance.dev/tenant_id
+        - https://getclearance.dev/role
+        - https://getclearance.dev/permissions
+        - https://getclearance.dev/email
+        """
+        namespace = "https://getclearance.dev/"
+
+        # Extract namespaced claims and map to flat names
+        tenant_id = payload.get(f"{namespace}tenant_id") or payload.get("tenant_id")
+        email = payload.get(f"{namespace}email") or payload.get("email")
+        role = payload.get(f"{namespace}role") or payload.get("role")
+        permissions = payload.get(f"{namespace}permissions") or payload.get("permissions", [])
+
+        return cls(
+            sub=payload["sub"],
+            aud=payload["aud"],
+            iss=payload["iss"],
+            exp=payload["exp"],
+            iat=payload["iat"],
+            tenant_id=tenant_id,
+            email=email,
+            role=role,
+            permissions=permissions if isinstance(permissions, list) else [],
+        )
 
 
 class CurrentUser(BaseModel):
@@ -156,8 +193,9 @@ async def verify_token(
             audience=settings.auth0_audience,
             issuer=settings.auth0_issuer,
         )
-        
-        return TokenPayload(**payload)
+
+        # Use from_jwt_payload to handle namespaced claims
+        return TokenPayload.from_jwt_payload(payload)
         
     except JWTError as e:
         raise HTTPException(
