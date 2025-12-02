@@ -255,10 +255,38 @@ async def get_current_user(
             await db.commit()
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User not associated with a tenant. Please contact support.",
+        # Auto-provision user on first login
+        # Create or get default tenant, then create user
+        from app.models.tenant import Tenant
+
+        # Get or create default tenant
+        result = await db.execute(
+            select(Tenant).where(Tenant.slug == "default")
         )
+        default_tenant = result.scalar_one_or_none()
+
+        if not default_tenant:
+            # Create default tenant
+            default_tenant = Tenant(
+                name="GetClearance Demo",
+                slug="default",
+                settings={"plan": "demo", "auto_provisioned": True},
+            )
+            db.add(default_tenant)
+            await db.flush()  # Get the ID
+
+        # Create the user
+        user = User(
+            tenant_id=default_tenant.id,
+            auth0_id=token.sub,
+            email=token.email or f"{token.sub}@auth0.user",
+            name=token.email.split("@")[0] if token.email else "User",
+            role="admin",  # First user gets admin
+            status="active",
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
 
     # Get default permissions for role if not in token
     permissions = token.permissions
