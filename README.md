@@ -2,19 +2,28 @@
 
 AI-native KYC/AML compliance platform - a Sumsub alternative.
 
-**Status: Backend 100% Complete | Frontend Sprint 1-2 Complete**
+**Status: Backend 100% Complete | Frontend Sprint 3 Complete | LIVE 🚀**
+
+## Live Deployment
+
+| Component | URL | Status |
+|-----------|-----|--------|
+| Frontend | https://getclearance.vercel.app | ✅ Live |
+| Backend API | https://getclearance-production.up.railway.app | ✅ Live |
+| API Docs | https://getclearance-production.up.railway.app/docs | ✅ Live |
 
 ## Current Reality
 
 | Component | Status | Details |
 |-----------|--------|---------|
 | Backend API | 100% Complete | All endpoints working, deployed to Railway |
-| Frontend UI | UI Complete | Beautiful Sumsub-style components |
+| Frontend UI | ✅ Complete | Beautiful Sumsub-style components |
 | Frontend Auth | ✅ Sprint 1 Complete | Auth0 login/logout, protected routes |
 | Frontend API Layer | ✅ Sprint 2 Complete | Services + React Query hooks ready |
-| Component Integration | In Progress | Components need to use the API hooks |
+| Applicants Module | ✅ Sprint 3 Complete | Real API integration, no mock data |
+| Polish & UX | ✅ Sprint 3 Polish | Toast notifications, keyboard shortcuts, batch actions |
 
-**The foundation is complete.** Auth0 authentication and API service layer are working. Components still use mock data but the hooks are ready. See [Frontend Integration Guide](./docs/FRONTEND_AUDIT_AND_INTEGRATION_GUIDE.md) for details.
+**The app is fully functional.** Login, view applicants, approve/reject, search/filter - all working with real data.
 
 ## Quick Start
 
@@ -57,7 +66,7 @@ arq app.workers.config.WorkerSettings
 # API Docs: http://localhost:8000/docs
 ```
 
-**Note:** The frontend has authentication working. Components still use mock data until Sprint 3+ integration.
+**Note:** The app auto-provisions users on first login. No manual setup required.
 
 ## Project Structure
 
@@ -67,13 +76,15 @@ getclearance/
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── AppShell.jsx           # Main layout, navigation
-│   │   │   ├── Dashboard.jsx          # KPI cards (mock data)
-│   │   │   ├── ApplicantsList.jsx     # Applicants table (mock data)
-│   │   │   ├── ApplicantDetail.jsx    # Individual applicant (mock data)
-│   │   │   ├── ScreeningChecks.jsx    # AML screening (mock data)
-│   │   │   ├── CaseManagement.jsx     # Case queue (mock data)
-│   │   │   ├── ApplicantAssistant.jsx # End-user chat (fake responses)
-│   │   │   └── DesignSystem.jsx       # Shared components
+│   │   │   ├── Dashboard.jsx          # KPI cards
+│   │   │   ├── ApplicantsList.jsx     # Applicants table (real API)
+│   │   │   ├── ApplicantDetail.jsx    # Individual applicant (real API)
+│   │   │   ├── CreateApplicantModal.jsx # Create new applicant
+│   │   │   ├── ScreeningChecks.jsx    # AML screening
+│   │   │   ├── CaseManagement.jsx     # Case queue
+│   │   │   ├── ApplicantAssistant.jsx # End-user chat
+│   │   │   ├── ErrorBoundary.jsx      # Error handling
+│   │   │   └── shared/                # Reusable components (Toast, ConfirmDialog, etc.)
 │   │   ├── App.jsx
 │   │   └── index.js
 │   └── package.json
@@ -158,37 +169,41 @@ getclearance/
 - [x] Comprehensive test suite
 - [x] Deployed to Railway
 
-### Frontend (Sprint 1-2 Complete, Components Need Integration)
+### Frontend (Sprint 3 Complete)
 - [x] Dashboard with KPI cards
-- [x] Applicants list with filtering
-- [x] Applicant detail with tabs
+- [x] Applicants list with filtering (real API)
+- [x] Applicant detail with tabs (real API)
+- [x] Create applicant modal
 - [x] AML Screening interface
 - [x] Case management queue
 - [x] AI assistant chat
 - [x] Dark/light theme
-- [x] **Authentication (Auth0 login/logout working)**
-- [x] **API service layer (all endpoints covered)**
-- [x] **React Query hooks (ready to use)**
-- [ ] **Component integration (still using mock data)**
-- [ ] **Real-time updates (no WebSocket yet)**
+- [x] **Authentication (Auth0 login/logout)**
+- [x] **API service layer (all endpoints)**
+- [x] **React Query hooks with optimistic updates**
+- [x] **Toast notifications**
+- [x] **Confirmation dialogs**
+- [x] **Keyboard shortcuts (Cmd+K, A/R for approve/reject)**
+- [x] **Batch approve/reject**
+- [x] **URL state sync (shareable filter URLs)**
+- [x] **Error boundaries**
+- [ ] **Document upload UI (Sprint 4)**
+- [ ] **Real-time updates (Sprint 7)**
 
 ## Frontend Work Remaining
-
-Sprints 1-2 are complete. The remaining work is connecting components to the API:
 
 | Sprint | Focus | Status |
 |--------|-------|--------|
 | 1 | Authentication (Auth0) | ✅ Complete |
 | 2 | API Service Layer | ✅ Complete |
-| 3 | Applicants Module | 🔲 Pending |
+| 3 | Applicants Module | ✅ Complete |
+| 3+ | Polish & UX | ✅ Complete |
 | 4 | Document Upload | 🔲 Pending |
 | 5 | Screening Module | 🔲 Pending |
 | 6 | Cases & AI | 🔲 Pending |
 | 7 | Polish & Real-time | 🔲 Pending |
 
-**Remaining: ~18-25 days (Sprints 3-7)**
-
-See [Frontend Sprint Prompts](./docs/implementation-guide/09_FRONTEND_SPRINT_PROMPTS.md) for copy-paste ready prompts for each sprint.
+**Remaining: ~12-15 days (Sprints 4-7)**
 
 ## API Endpoints (All Working)
 
@@ -320,12 +335,17 @@ The backend is deployed on Railway. To redeploy:
 
 See [docs/DEPLOYMENT_GUIDE.md](./docs/DEPLOYMENT_GUIDE.md) for detailed instructions.
 
-### Frontend Deployment
+### Frontend (Vercel - Already Deployed)
 
-Once frontend integration is complete, deploy to:
-- Vercel (recommended)
-- Netlify
-- Cloudflare Pages
+The frontend is deployed on Vercel at https://getclearance.vercel.app
+
+Environment variables in Vercel:
+```
+REACT_APP_API_BASE_URL=https://getclearance-production.up.railway.app/api/v1
+REACT_APP_AUTH0_DOMAIN=dev-8z4blmy3c8wvkp4k.us.auth0.com
+REACT_APP_AUTH0_CLIENT_ID=W5uDmvvRYDmw9Sm4avfEzoOxo26XF8rR
+REACT_APP_AUTH0_AUDIENCE=https://api.getclearance.vercel.app
+```
 
 ## Documentation
 
@@ -338,12 +358,12 @@ Once frontend integration is complete, deploy to:
 ## Project Status Summary
 
 ```
-Backend:  ████████████████████ 100%  - Production ready, deployed
-Frontend: ██████████████░░░░░░  72%  - Auth + API layer done, component integration needed
-Overall:  ██████████████████░░  88%  - Sprints 3-7 remaining
+Backend:  ████████████████████ 100%  - Production ready, deployed to Railway
+Frontend: █████████████████░░░  85%  - Sprint 3 complete, Sprints 4-7 remaining
+Overall:  █████████████████░░░  92%  - Core functionality working
 ```
 
-**Next Step:** Start Frontend Sprint 3 (Applicants Module Integration)
+**Next Step:** Frontend Sprint 4 (Document Upload Integration)
 
 ---
 
