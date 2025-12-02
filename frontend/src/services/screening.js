@@ -39,6 +39,18 @@ export class ScreeningService {
     const query = buildQueryString({ ...params, resolved: false });
     return this.client.get(`/screening/hits${query}`, options);
   }
+
+  getLists(options = {}) {
+    return this.client.get('/screening/lists', options);
+  }
+
+  syncLists(options = {}) {
+    return this.client.post('/screening/lists/sync', {}, options);
+  }
+
+  getStats(options = {}) {
+    return this.client.get('/screening/stats', options);
+  }
 }
 
 export default ScreeningService;
