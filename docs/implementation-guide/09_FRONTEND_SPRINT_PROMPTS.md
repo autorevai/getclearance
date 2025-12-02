@@ -8,8 +8,23 @@
 
 The frontend has beautiful Sumsub-style UI components but is **100% mock data** with **zero backend integration**. The backend is production-ready with full APIs. These sprints connect the two.
 
-**Backend Status:** Production-ready, deployed, all APIs working
+**Backend Status:** Production-ready, deployed, most APIs working
 **Frontend Status:** UI prototype only - needs API integration
+
+---
+
+## ✅ Backend Dashboard & Screening APIs (Sprint 0 Complete)
+
+**Sprint 0 has been completed.** The following backend endpoints are now available:
+
+| Endpoint | Status | Purpose |
+|----------|--------|---------|
+| `GET /api/v1/dashboard/stats` | ✅ Complete | KPIs (today's applicants, approved, rejected, pending) |
+| `GET /api/v1/dashboard/screening-summary` | ✅ Complete | Screening hit counts by type (sanctions, PEP, adverse media) |
+| `GET /api/v1/dashboard/activity` | ✅ Complete | Recent activity feed (reviews, screening hits, documents) |
+| `GET /api/v1/screening/lists` | ✅ Complete | Connected list sources (OFAC, EU, UN, UK, OpenSanctions) |
+
+**Sprint 8 (Dashboard Integration) and Sprint 5 (Screening) can now proceed.**
 
 ---
 
@@ -24,6 +39,227 @@ Before starting ANY sprint, upload these files:
 
 **Optional but helpful:**
 5. The specific component file you're working on (e.g., `ApplicantsList.jsx`)
+
+---
+
+## Sprint 0: Backend Dashboard & Screening List Endpoints ✅ COMPLETE
+
+### Status: COMPLETED (2025-12-02)
+
+**Implemented:**
+- `backend/app/api/v1/dashboard.py` - New dashboard router
+- `GET /api/v1/dashboard/stats` - KPI statistics with day-over-day changes
+- `GET /api/v1/dashboard/screening-summary` - Screening hit counts by type
+- `GET /api/v1/dashboard/activity` - Activity feed (reviews, screening, documents)
+- `GET /api/v1/screening/lists` - Connected screening list sources
+
+### Why This Sprint Existed
+The frontend Dashboard and Screening pages displayed mock data because the backend endpoints didn't exist. This sprint created them.
+
+### Files to Upload:
+1. `backend/app/api/v1/` directory structure
+2. `backend/app/models/` relevant models
+3. `README.md` (from repo)
+
+### Prompt (Copy This):
+
+```
+# CHAT TITLE: Backend Sprint 0 - Dashboard & Screening List Endpoints
+
+## Context
+I'm building GetClearance, an AI-native KYC/AML platform. The frontend has mock data for Dashboard KPIs, screening summary, activity feed, and connected list sources. I need to create the backend endpoints to serve real data.
+
+**Current Repo:** https://github.com/autorevai/getclearance
+
+## Current State
+- Backend deployed on Railway with PostgreSQL
+- Frontend showing hardcoded mock data for:
+  - Dashboard KPIs (47 applicants, 38 approved, etc.)
+  - Screening hit summary (2 sanctions, 5 PEP, 8 adverse media)
+  - Recent activity feed
+  - Connected List Sources (OFAC, EU, UN, UK, OpenSanctions)
+
+## What I Need You To Create
+
+### Part 1: Dashboard Router
+**File to create:** `backend/app/api/v1/dashboard.py`
+
+#### Endpoint 1: GET /api/v1/dashboard/stats
+Returns KPI statistics for the dashboard.
+
+**Response Schema:**
+```json
+{
+  "today_applicants": 47,
+  "today_applicants_change": 12,
+  "approved": 38,
+  "approved_change": 8,
+  "rejected": 4,
+  "rejected_change": -2,
+  "pending_review": 12,
+  "pending_review_change": 0
+}
+```
+
+**Implementation:**
+- Count applicants created today vs yesterday
+- Count by status (approved, rejected, pending)
+- Calculate day-over-day changes
+
+#### Endpoint 2: GET /api/v1/dashboard/screening-summary
+Returns screening hit counts by type.
+
+**Response Schema:**
+```json
+{
+  "sanctions_matches": 2,
+  "pep_hits": 5,
+  "adverse_media": 8
+}
+```
+
+**Implementation:**
+- Count screening_hits by hit_type
+- Filter by tenant_id
+
+#### Endpoint 3: GET /api/v1/dashboard/activity
+Returns recent activity feed (last 20 items).
+
+**Response Schema:**
+```json
+{
+  "items": [
+    {
+      "type": "approved",
+      "applicant_name": "Emily Park",
+      "time": "2025-12-02T10:30:00Z",
+      "reviewer": "You",
+      "detail": null
+    },
+    {
+      "type": "screening_hit",
+      "applicant_name": "Marcus Webb",
+      "time": "2025-12-02T10:15:00Z",
+      "reviewer": null,
+      "detail": "PEP match detected"
+    }
+  ]
+}
+```
+
+**Implementation:**
+- Query recent applicant status changes
+- Query recent screening hits
+- Query recent document uploads
+- Merge and sort by timestamp
+- Limit to 20 items
+
+### Part 2: Screening Lists Endpoint
+**File to modify:** `backend/app/api/v1/screening.py`
+
+#### Endpoint: GET /api/v1/screening/lists
+Returns connected screening list sources.
+
+**Response Schema:**
+```json
+{
+  "items": [
+    {
+      "id": "ofac",
+      "name": "OFAC SDN",
+      "version": "OFAC-2025-11-27",
+      "last_updated": "2025-11-27T00:00:00Z",
+      "entity_count": 12847
+    },
+    {
+      "id": "opensanctions",
+      "name": "OpenSanctions",
+      "version": "OS-2025-12-02",
+      "last_updated": "2025-12-02T06:00:00Z",
+      "entity_count": 89234
+    }
+  ]
+}
+```
+
+**Implementation:**
+- Query screening_lists table
+- Return all active list sources with versions and counts
+- If no real lists exist, return configured defaults
+
+### Part 3: Register Routes
+**File to modify:** `backend/app/api/v1/__init__.py`
+
+Add the dashboard router to the API.
+
+## Architecture Constraints
+
+**All endpoints must:**
+- Use `TenantDB` dependency for multi-tenant filtering
+- Use `AuthenticatedUser` dependency for auth
+- Return proper Pydantic response models
+- Handle empty data gracefully (return zeros, not errors)
+
+**Dashboard stats query example:**
+```python
+from datetime import datetime, timedelta
+from sqlalchemy import func, and_
+
+today = datetime.utcnow().date()
+yesterday = today - timedelta(days=1)
+
+# Count today's applicants
+today_count = await db.scalar(
+    select(func.count(Applicant.id))
+    .where(and_(
+        Applicant.tenant_id == user.tenant_id,
+        func.date(Applicant.created_at) == today
+    ))
+)
+
+# Count yesterday's for comparison
+yesterday_count = await db.scalar(
+    select(func.count(Applicant.id))
+    .where(and_(
+        Applicant.tenant_id == user.tenant_id,
+        func.date(Applicant.created_at) == yesterday
+    ))
+)
+
+change = today_count - yesterday_count
+```
+
+## Success Criteria
+
+- [ ] `GET /api/v1/dashboard/stats` returns real KPIs from database
+- [ ] `GET /api/v1/dashboard/screening-summary` returns real hit counts
+- [ ] `GET /api/v1/dashboard/activity` returns recent activity feed
+- [ ] `GET /api/v1/screening/lists` returns list sources
+- [ ] All endpoints require authentication
+- [ ] All endpoints filter by tenant_id
+- [ ] Empty tenant returns zeros (not errors)
+
+## Testing
+
+After implementation, test with curl:
+```bash
+# Get auth token first, then:
+curl -H "Authorization: Bearer $TOKEN" \
+  https://getclearance-production.up.railway.app/api/v1/dashboard/stats
+
+curl -H "Authorization: Bearer $TOKEN" \
+  https://getclearance-production.up.railway.app/api/v1/dashboard/screening-summary
+
+curl -H "Authorization: Bearer $TOKEN" \
+  https://getclearance-production.up.railway.app/api/v1/dashboard/activity
+
+curl -H "Authorization: Bearer $TOKEN" \
+  https://getclearance-production.up.railway.app/api/v1/screening/lists
+```
+
+## Questions?
+If unclear about database schema or existing patterns, ask first.
+```
 
 ---
 
@@ -1764,19 +2000,960 @@ If unclear about WebSocket setup or permission structure, ask first.
 
 ---
 
+## Sprint 8: Dashboard Integration (High - 2-3 Days)
+
+### Prerequisites
+- **Sprint 0 must be completed first** (backend dashboard endpoints)
+- Sprint 2 (API Service Layer)
+
+### Files to Upload:
+1. `FRONTEND_AUDIT_AND_INTEGRATION_GUIDE.md`
+2. `02_FOLDER_STRUCTURE_COMPLETE.md`
+3. `README.md` (from repo)
+4. `frontend/src/components/Dashboard.jsx`
+
+### Prompt (Copy This):
+
+```
+# CHAT TITLE: Frontend Sprint 8 - Dashboard Integration
+
+## Context
+I'm building GetClearance, an AI-native KYC/AML platform (Sumsub clone). Sprint 0 created the backend dashboard endpoints. Now I need to connect the Dashboard UI to real data.
+
+**Current Repo:** https://github.com/autorevai/getclearance
+
+## What Exists (Read These First)
+I've uploaded context files:
+
+1. **FRONTEND_AUDIT_AND_INTEGRATION_GUIDE.md** - Implementation patterns
+2. **02_FOLDER_STRUCTURE_COMPLETE.md** - Directory tree
+3. **README.md** - Project README
+4. **Dashboard.jsx** - Current UI (uses mock data)
+
+**Current state:**
+- Dashboard.jsx has hardcoded mock data:
+  - mockKPIs (47 applicants, 38 approved, etc.)
+  - mockScreeningHits (2 sanctions, 5 PEP, 8 adverse)
+  - mockRecentActivity (Emily Park, Marcus Webb, etc.)
+  - mockAIInsights
+- Backend endpoints exist (Sprint 0):
+  - GET /api/v1/dashboard/stats
+  - GET /api/v1/dashboard/screening-summary
+  - GET /api/v1/dashboard/activity
+
+## What I Need You To Do
+
+### Part 1: Create Dashboard Hooks
+
+**Files to create:**
+1. `frontend/src/hooks/useDashboard.js` - React Query hooks for dashboard data
+
+**Hooks needed:**
+```javascript
+export function useDashboardStats() {
+  // Fetches GET /api/v1/dashboard/stats
+}
+
+export function useScreeningSummary() {
+  // Fetches GET /api/v1/dashboard/screening-summary
+}
+
+export function useRecentActivity() {
+  // Fetches GET /api/v1/dashboard/activity
+}
+```
+
+### Part 2: Update Dashboard.jsx
+
+**Changes needed:**
+1. Remove mockKPIs array
+2. Remove mockScreeningHits array
+3. Remove mockRecentActivity array
+4. Import and use useDashboardStats() hook
+5. Import and use useScreeningSummary() hook
+6. Import and use useRecentActivity() hook
+7. Show loading skeletons while fetching
+8. Show error states if API fails
+9. Add refresh button to manually refetch data
+
+### Part 3: Add Dashboard Service
+
+**Files to create:**
+2. `frontend/src/services/dashboard.js` - Dashboard API methods
+
+```javascript
+export class DashboardService {
+  constructor(getToken) {
+    this.api = new ApiClient(getToken);
+  }
+
+  async getStats() {
+    return this.api.get('/dashboard/stats');
+  }
+
+  async getScreeningSummary() {
+    return this.api.get('/dashboard/screening-summary');
+  }
+
+  async getActivity() {
+    return this.api.get('/dashboard/activity');
+  }
+}
+```
+
+## Integration Requirements
+
+### Dashboard must:
+- Use useDashboardStats() for KPI cards
+- Use useScreeningSummary() for screening hits widget
+- Use useRecentActivity() for activity feed
+- Show skeleton loading states
+- Auto-refresh data every 60 seconds (staleTime)
+- Show "Last updated" timestamp
+
+### KPI Cards mapping:
+```jsx
+// Map API response to card display
+const { data: stats } = useDashboardStats();
+
+const kpiCards = [
+  {
+    label: "Today's Applicants",
+    value: stats?.today_applicants || 0,
+    change: stats?.today_applicants_change || 0,
+    trend: stats?.today_applicants_change >= 0 ? 'up' : 'down'
+  },
+  {
+    label: 'Approved',
+    value: stats?.approved || 0,
+    change: stats?.approved_change || 0,
+    trend: stats?.approved_change >= 0 ? 'up' : 'down'
+  },
+  // ... etc
+];
+```
+
+### Screening Hits mapping:
+```jsx
+const { data: screening } = useScreeningSummary();
+
+const screeningHits = [
+  { severity: 'high', count: screening?.sanctions_matches || 0, label: 'Sanctions Matches' },
+  { severity: 'medium', count: screening?.pep_hits || 0, label: 'PEP Hits' },
+  { severity: 'low', count: screening?.adverse_media || 0, label: 'Adverse Media' },
+];
+```
+
+### Activity Feed mapping:
+```jsx
+const { data: activity } = useRecentActivity();
+
+// activity.items already in correct format from API
+{activity?.items?.map((item, index) => (
+  <ActivityItem key={index} {...item} />
+))}
+```
+
+## Architecture Constraints
+
+**Component Pattern:**
+```jsx
+// Dashboard.jsx
+import { useDashboardStats, useScreeningSummary, useRecentActivity } from '../hooks/useDashboard';
+
+export default function Dashboard() {
+  const { data: stats, isLoading: statsLoading, error: statsError } = useDashboardStats();
+  const { data: screening, isLoading: screeningLoading } = useScreeningSummary();
+  const { data: activity, isLoading: activityLoading } = useRecentActivity();
+
+  return (
+    <div className="dashboard">
+      {/* KPI Section */}
+      <section className="kpi-grid">
+        {statsLoading ? (
+          <KPISkeleton count={4} />
+        ) : statsError ? (
+          <ErrorState message="Failed to load stats" />
+        ) : (
+          kpiCards.map(card => <KPICard key={card.label} {...card} />)
+        )}
+      </section>
+
+      {/* Screening Hits */}
+      <section className="screening-summary">
+        {screeningLoading ? (
+          <ScreeningSkeleton />
+        ) : (
+          <ScreeningHitsWidget hits={screeningHits} />
+        )}
+      </section>
+
+      {/* Activity Feed */}
+      <section className="activity-feed">
+        {activityLoading ? (
+          <ActivitySkeleton count={5} />
+        ) : (
+          <ActivityFeed items={activity?.items || []} />
+        )}
+      </section>
+
+      {/* AI Insights - keep as is for now (separate AI integration) */}
+    </div>
+  );
+}
+```
+
+**React Query Configuration:**
+```javascript
+// useDashboard.js
+export function useDashboardStats() {
+  const { getToken } = useAuth();
+  const service = new DashboardService(getToken);
+
+  return useQuery({
+    queryKey: ['dashboard', 'stats'],
+    queryFn: () => service.getStats(),
+    staleTime: 60000, // Refresh every minute
+    refetchInterval: 60000, // Auto-refresh
+  });
+}
+```
+
+## Success Criteria
+
+- [ ] Dashboard shows real KPIs from API
+- [ ] KPI change indicators show real day-over-day changes
+- [ ] Screening hits widget shows real counts
+- [ ] Activity feed shows real recent activity
+- [ ] Loading skeletons show during fetch
+- [ ] Error states show with retry button
+- [ ] Data auto-refreshes every 60 seconds
+- [ ] No mock data remains in Dashboard.jsx (except AI Insights)
+
+## Testing Checklist
+
+After implementation:
+1. Login and navigate to /dashboard
+2. Verify KPIs show real numbers (may be zeros if no data)
+3. Verify screening hits show real counts
+4. Verify activity feed shows real events
+5. Wait 60 seconds - verify data refreshes
+6. Disconnect network - verify error state shows
+7. Reconnect - verify retry button works
+
+## Reference
+See `FRONTEND_AUDIT_AND_INTEGRATION_GUIDE.md` for patterns.
+
+## Questions?
+If unclear about API response format or existing Dashboard structure, ask first.
+```
+
+---
+
+## Sprint 9: Remaining Gaps & Placeholder Pages (Medium - 3-5 Days)
+
+### Why This Sprint?
+After completing Sprints 1-8, there are remaining gaps:
+1. **8 placeholder pages** that show "Coming Soon"
+2. **Dashboard mock data** (AI insights, SLA performance)
+3. **Non-functional UI buttons** (export, AI batch review, attach, global search)
+4. **Hard-coded badge counts** in navigation
+
+### Files to Upload:
+1. `FRONTEND_AUDIT_AND_INTEGRATION_GUIDE.md`
+2. `02_FOLDER_STRUCTURE_COMPLETE.md`
+3. `README.md` (from repo)
+4. `frontend/src/components/AppShell.jsx`
+5. `frontend/src/components/Dashboard.jsx`
+6. `frontend/src/components/ApplicantsList.jsx`
+7. `frontend/src/components/ApplicantAssistant.jsx`
+
+### Prompt (Copy This):
+
+```
+# CHAT TITLE: Frontend Sprint 9 - Remaining Gaps & Placeholder Pages
+
+## Context
+I'm building GetClearance, an AI-native KYC/AML platform (Sumsub clone). Sprints 1-8 completed the core functionality. Now I need to address remaining gaps: placeholder pages, mock data, and non-functional buttons.
+
+**Current Repo:** https://github.com/autorevai/getclearance
+
+## What Exists (Read These First)
+I've uploaded context files:
+
+1. **FRONTEND_AUDIT_AND_INTEGRATION_GUIDE.md** - Implementation patterns
+2. **02_FOLDER_STRUCTURE_COMPLETE.md** - Directory tree
+3. **README.md** - Project README
+4. **AppShell.jsx** - Navigation with placeholder items
+5. **Dashboard.jsx** - Has mock AI insights and SLA
+6. **ApplicantsList.jsx** - Has non-functional AI Batch Review button
+7. **ApplicantAssistant.jsx** - Has non-functional attach and language buttons
+
+## Current Gaps
+
+### Gap 1: Placeholder Pages (8 pages show "Coming Soon")
+These navigation items exist but lead nowhere:
+- Companies/KYB
+- Integrations
+- Device Intelligence (BETA)
+- Reusable KYC (BETA)
+- Analytics
+- Settings
+- Billing & Usage
+- Audit Log
+
+### Gap 2: Dashboard Mock Data
+- `mockAIInsights` array is hardcoded
+- AI insight action buttons don't work
+- SLA Performance ring shows hardcoded 94%
+
+### Gap 3: Non-functional UI Buttons
+- **AppShell**: Global search bar (renders but no action)
+- **AppShell**: Notifications bell (shows badge but no dropdown)
+- **AppShell**: Hard-coded badge counts (12, 3, 5) in navItems
+- **Dashboard**: "Today" and "All Products" filter buttons
+- **Dashboard**: Activity item click (no navigation)
+- **ApplicantsList**: "AI Batch Review" button
+- **ApplicantsList**: "More actions" [...] dropdown per row
+- **CaseManagement**: "Export" button in case detail
+- **ApplicantAssistant**: Language selector dropdown
+- **ApplicantAssistant**: Attach document button
+
+## What I Need You To Do
+
+### Part 1: Create Placeholder Page Components
+
+**File to create:** `frontend/src/components/pages/ComingSoon.jsx`
+
+A reusable "Coming Soon" page component:
+```jsx
+export default function ComingSoon({
+  title,
+  description,
+  icon: Icon,
+  expectedDate,
+  features = []
+}) {
+  return (
+    <div className="coming-soon-page">
+      <div className="coming-soon-content">
+        {Icon && <Icon size={64} className="coming-soon-icon" />}
+        <h1>{title}</h1>
+        <p className="coming-soon-description">{description}</p>
+
+        {features.length > 0 && (
+          <div className="planned-features">
+            <h3>Planned Features:</h3>
+            <ul>
+              {features.map((feature, i) => (
+                <li key={i}>{feature}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {expectedDate && (
+          <p className="expected-date">Expected: {expectedDate}</p>
+        )}
+
+        <button onClick={() => window.history.back()}>
+          ← Go Back
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+### Part 2: Create Specific Placeholder Pages
+
+**Files to create:**
+
+1. `frontend/src/components/pages/CompaniesPage.jsx`
+```jsx
+import ComingSoon from './ComingSoon';
+import { Building2 } from 'lucide-react';
+
+export default function CompaniesPage() {
+  return (
+    <ComingSoon
+      title="Companies / KYB"
+      description="Know Your Business verification for corporate entities"
+      icon={Building2}
+      expectedDate="Q1 2025"
+      features={[
+        "Corporate entity verification",
+        "UBO (Ultimate Beneficial Owner) identification",
+        "Business document verification",
+        "Corporate structure mapping",
+        "Risk assessment for businesses"
+      ]}
+    />
+  );
+}
+```
+
+2. `frontend/src/components/pages/IntegrationsPage.jsx` - API keys, webhooks management
+3. `frontend/src/components/pages/DeviceIntelligencePage.jsx` - Device fingerprinting (BETA)
+4. `frontend/src/components/pages/ReusableKYCPage.jsx` - Portable identity (BETA)
+5. `frontend/src/components/pages/AnalyticsPage.jsx` - Reports and dashboards
+6. `frontend/src/components/pages/SettingsPage.jsx` - Account settings, team management
+7. `frontend/src/components/pages/BillingPage.jsx` - Usage, invoices, plans
+8. `frontend/src/components/pages/AuditLogPage.jsx` - Compliance audit trail
+
+### Part 3: Add Routes for Placeholder Pages
+
+**Update App.jsx:**
+```jsx
+import CompaniesPage from './components/pages/CompaniesPage';
+import IntegrationsPage from './components/pages/IntegrationsPage';
+import DeviceIntelligencePage from './components/pages/DeviceIntelligencePage';
+import ReusableKYCPage from './components/pages/ReusableKYCPage';
+import AnalyticsPage from './components/pages/AnalyticsPage';
+import SettingsPage from './components/pages/SettingsPage';
+import BillingPage from './components/pages/BillingPage';
+import AuditLogPage from './components/pages/AuditLogPage';
+
+// Add routes
+<Route path="/companies" element={<CompaniesPage />} />
+<Route path="/integrations" element={<IntegrationsPage />} />
+<Route path="/device-intel" element={<DeviceIntelligencePage />} />
+<Route path="/reusable-kyc" element={<ReusableKYCPage />} />
+<Route path="/analytics" element={<AnalyticsPage />} />
+<Route path="/settings" element={<SettingsPage />} />
+<Route path="/billing" element={<BillingPage />} />
+<Route path="/audit-log" element={<AuditLogPage />} />
+```
+
+### Part 4: Connect Dashboard AI Insights to Real API
+
+**Changes to Dashboard.jsx:**
+
+1. Remove `mockAIInsights` array
+2. Create new hook `useAIInsights()` that calls `/ai/dashboard-insights`
+3. If backend endpoint doesn't exist, show a placeholder state:
+```jsx
+const AIInsightsSection = () => {
+  const { data: insights, isLoading, error } = useAIInsights();
+
+  if (isLoading) return <InsightsSkeleton />;
+  if (error || !insights) {
+    return (
+      <div className="ai-insights-placeholder">
+        <Sparkles size={24} />
+        <p>AI Insights will appear here once enough data is collected.</p>
+        <small>Insights are generated based on applicant patterns and screening results.</small>
+      </div>
+    );
+  }
+
+  return insights.map(insight => <InsightCard key={insight.id} {...insight} />);
+};
+```
+
+4. Connect SLA Performance to real data:
+```jsx
+// Add to useDashboardStats or create usePerformanceMetrics
+const { data: performance } = usePerformanceMetrics();
+const slaOnTime = performance?.sla_percentage ?? null;
+
+// In render:
+{slaOnTime !== null ? (
+  <SLAGauge value={slaOnTime} />
+) : (
+  <SLAPlaceholder message="SLA tracking requires processing history" />
+)}
+```
+
+5. Make AI insight action buttons work:
+```jsx
+const handleInsightAction = (insight) => {
+  switch (insight.action) {
+    case 'View Analytics':
+      navigate('/analytics');
+      break;
+    case 'Review Applicants':
+      navigate('/applicants?risk_level=high');
+      break;
+    case 'Run Re-screen':
+      navigate('/screening?needs_rescreen=true');
+      break;
+  }
+};
+```
+
+### Part 5: Implement Global Search
+
+**Update AppShell.jsx:**
+
+1. Create search modal/dropdown:
+```jsx
+const [searchOpen, setSearchOpen] = useState(false);
+const [searchQuery, setSearchQuery] = useState('');
+const [searchResults, setSearchResults] = useState(null);
+
+// Add keyboard shortcut
+useEffect(() => {
+  const handleKeyDown = (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      setSearchOpen(true);
+    }
+    if (e.key === 'Escape') {
+      setSearchOpen(false);
+    }
+  };
+  window.addEventListener('keydown', handleKeyDown);
+  return () => window.removeEventListener('keydown', handleKeyDown);
+}, []);
+```
+
+2. Create `useGlobalSearch` hook:
+```jsx
+// hooks/useGlobalSearch.js
+export function useGlobalSearch(query) {
+  const { getToken } = useAuth();
+
+  return useQuery({
+    queryKey: ['globalSearch', query],
+    queryFn: async () => {
+      if (!query || query.length < 2) return null;
+      const api = new ApiClient(getToken);
+      // Search across multiple endpoints
+      const [applicants, cases] = await Promise.all([
+        api.get(`/applicants?search=${query}&limit=5`),
+        api.get(`/cases?search=${query}&limit=5`),
+      ]);
+      return {
+        applicants: applicants.items || [],
+        cases: cases.items || [],
+      };
+    },
+    enabled: query?.length >= 2,
+    staleTime: 30000,
+  });
+}
+```
+
+3. Create SearchModal component:
+```jsx
+// components/SearchModal.jsx
+export default function SearchModal({ isOpen, onClose }) {
+  const [query, setQuery] = useState('');
+  const { data: results, isLoading } = useGlobalSearch(query);
+  const navigate = useNavigate();
+
+  const handleSelect = (type, id) => {
+    navigate(type === 'applicant' ? `/applicants/${id}` : `/cases/${id}`);
+    onClose();
+  };
+
+  return (
+    <Dialog open={isOpen} onClose={onClose}>
+      <div className="search-modal">
+        <input
+          autoFocus
+          placeholder="Search applicants, cases..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+
+        {isLoading && <LoadingSpinner />}
+
+        {results && (
+          <div className="search-results">
+            {results.applicants.length > 0 && (
+              <div className="result-section">
+                <h4>Applicants</h4>
+                {results.applicants.map(a => (
+                  <div key={a.id} onClick={() => handleSelect('applicant', a.id)}>
+                    {a.full_name} • {a.email}
+                  </div>
+                ))}
+              </div>
+            )}
+            {results.cases.length > 0 && (
+              <div className="result-section">
+                <h4>Cases</h4>
+                {results.cases.map(c => (
+                  <div key={c.id} onClick={() => handleSelect('case', c.id)}>
+                    {c.title} • {c.status}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+```
+
+### Part 6: Connect Navigation Badge Counts
+
+**Update AppShell.jsx:**
+
+Replace hard-coded badge counts with real data:
+```jsx
+// Create hook to get counts
+const { data: counts } = useNavigationCounts();
+
+const navItems = [
+  { id: 'applicants', label: 'Applicants', icon: Users, badge: counts?.pending_applicants },
+  { id: 'screening', label: 'Screening', icon: Shield, badge: counts?.unresolved_hits },
+  { id: 'cases', label: 'Cases', icon: FolderKanban, badge: counts?.open_cases },
+  // ... other items
+];
+```
+
+Create the hook:
+```jsx
+// hooks/useNavigationCounts.js
+export function useNavigationCounts() {
+  const { getToken } = useAuth();
+
+  return useQuery({
+    queryKey: ['navigationCounts'],
+    queryFn: async () => {
+      const api = new ApiClient(getToken);
+      const [applicants, screening, cases] = await Promise.all([
+        api.get('/applicants?status=pending_review&limit=0'),
+        api.get('/screening/hits?status=pending&limit=0'),
+        api.get('/cases?status=open&limit=0'),
+      ]);
+      return {
+        pending_applicants: applicants.total || 0,
+        unresolved_hits: screening.total || 0,
+        open_cases: cases.total || 0,
+      };
+    },
+    staleTime: 60000, // Refresh every minute
+    refetchInterval: 60000,
+  });
+}
+```
+
+### Part 7: Fix Minor Non-functional Buttons
+
+**ApplicantsList.jsx - AI Batch Review:**
+```jsx
+const handleAIBatchReview = async () => {
+  if (selectedIds.length === 0) {
+    toast.error('Select applicants first');
+    return;
+  }
+
+  // Option A: Navigate to batch review page
+  navigate(`/applicants/batch-review?ids=${selectedIds.join(',')}`);
+
+  // Option B: Show modal with AI recommendations (if backend supports)
+  // setShowBatchReviewModal(true);
+};
+```
+
+**ApplicantsList.jsx - More Actions dropdown:**
+```jsx
+const MoreActionsDropdown = ({ applicant }) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="dropdown">
+      <button onClick={() => setOpen(!open)}>...</button>
+      {open && (
+        <div className="dropdown-menu">
+          <button onClick={() => navigate(`/applicants/${applicant.id}`)}>
+            View Details
+          </button>
+          <button onClick={() => handleExportApplicant(applicant.id)}>
+            Export PDF
+          </button>
+          <button onClick={() => handleRunScreening(applicant.id)}>
+            Run Screening
+          </button>
+          <button onClick={() => handleCreateCase(applicant.id)}>
+            Create Case
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+```
+
+**CaseManagement.jsx - Export button:**
+```jsx
+const handleExportCase = async () => {
+  if (!selectedCase) return;
+
+  try {
+    const blob = await casesService.exportCase(selectedCase.id);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `case-${selectedCase.id}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Case exported');
+  } catch (error) {
+    toast.error('Failed to export case');
+  }
+};
+```
+
+**ApplicantAssistant.jsx - Language selector:**
+```jsx
+const [language, setLanguage] = useState('en');
+const [showLanguageMenu, setShowLanguageMenu] = useState(false);
+
+const languages = [
+  { code: 'en', label: 'English', flag: '🇺🇸' },
+  { code: 'es', label: 'Español', flag: '🇪🇸' },
+  { code: 'fr', label: 'Français', flag: '🇫🇷' },
+  { code: 'de', label: 'Deutsch', flag: '🇩🇪' },
+  { code: 'pt', label: 'Português', flag: '🇧🇷' },
+  { code: 'zh', label: '中文', flag: '🇨🇳' },
+  { code: 'ja', label: '日本語', flag: '🇯🇵' },
+  { code: 'ko', label: '한국어', flag: '🇰🇷' },
+  { code: 'ar', label: 'العربية', flag: '🇸🇦' },
+];
+
+// Pass language to API
+const handleSend = async () => {
+  await askAssistantMutation.mutateAsync({
+    query: inputValue,
+    applicant_id: applicantId,
+    language: language, // Include language preference
+  });
+};
+```
+
+**ApplicantAssistant.jsx - Attach button:**
+```jsx
+const fileInputRef = useRef(null);
+
+const handleAttachClick = () => {
+  fileInputRef.current?.click();
+};
+
+const handleFileSelect = async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  // Add file message to chat
+  setMessages(prev => [...prev, {
+    role: 'user',
+    content: `[Attached: ${file.name}]`,
+    file: file,
+  }]);
+
+  // Send with file context
+  await askAssistantMutation.mutateAsync({
+    query: `Please review this document: ${file.name}`,
+    applicant_id: applicantId,
+    // Note: Actual file upload would need backend support
+  });
+};
+
+// In render:
+<input
+  type="file"
+  ref={fileInputRef}
+  onChange={handleFileSelect}
+  accept="image/*,.pdf"
+  style={{ display: 'none' }}
+/>
+<button onClick={handleAttachClick}>
+  <Paperclip size={20} />
+</button>
+```
+
+**Dashboard.jsx - Filter buttons:**
+```jsx
+const [dateFilter, setDateFilter] = useState('today');
+const [productFilter, setProductFilter] = useState('all');
+
+// Pass filters to hooks
+const { data: stats } = useDashboardStats({
+  date_filter: dateFilter,
+  product_filter: productFilter
+});
+
+// In render:
+<button
+  className={dateFilter === 'today' ? 'active' : ''}
+  onClick={() => setDateFilter('today')}
+>
+  Today
+</button>
+<button
+  className={dateFilter === 'week' ? 'active' : ''}
+  onClick={() => setDateFilter('week')}
+>
+  This Week
+</button>
+```
+
+**Dashboard.jsx - Activity item click:**
+```jsx
+const handleActivityClick = (item) => {
+  switch (item.type) {
+    case 'applicant_reviewed':
+    case 'applicant_created':
+      navigate(`/applicants/${item.applicant_id}`);
+      break;
+    case 'screening_hit':
+      navigate(`/screening?hit_id=${item.hit_id}`);
+      break;
+    case 'case_created':
+    case 'case_resolved':
+      navigate(`/cases/${item.case_id}`);
+      break;
+    case 'document_uploaded':
+      navigate(`/applicants/${item.applicant_id}?tab=documents`);
+      break;
+  }
+};
+```
+
+## Architecture Constraints
+
+**Placeholder pages should:**
+- Use consistent styling with rest of app
+- Show planned features to set expectations
+- Have a back button
+- Include expected timeline if known
+
+**Global search should:**
+- Open with Cmd+K / Ctrl+K
+- Close on Escape
+- Debounce API calls (300ms)
+- Show results grouped by type
+- Navigate on selection
+
+**Badge counts should:**
+- Refresh every 60 seconds
+- Show 0 if none (don't hide badge)
+- Max display of 99+ for large numbers
+
+## Success Criteria
+
+### Placeholder Pages:
+- [ ] All 8 placeholder pages created with routes
+- [ ] Each shows relevant features and timeline
+- [ ] Back button works
+- [ ] Consistent styling
+
+### Dashboard:
+- [ ] AI Insights section shows placeholder if no API
+- [ ] AI Insight action buttons navigate correctly
+- [ ] SLA Performance connected or shows placeholder
+- [ ] Filter buttons (Today/Week) work
+- [ ] Activity items are clickable
+
+### Global Search:
+- [ ] Cmd+K opens search modal
+- [ ] Search queries applicants and cases
+- [ ] Results are clickable and navigate
+- [ ] Escape closes modal
+
+### Navigation:
+- [ ] Badge counts come from real API
+- [ ] Counts refresh every minute
+
+### Minor Buttons:
+- [ ] AI Batch Review does something (navigate or modal)
+- [ ] More actions dropdown works per row
+- [ ] Case Export button downloads PDF
+- [ ] Language selector changes language
+- [ ] Attach button opens file picker
+
+## Testing Checklist
+
+1. **Placeholder Pages:**
+   - Click each nav item -> appropriate Coming Soon page
+   - Back button returns to previous page
+
+2. **Global Search:**
+   - Press Cmd+K -> search modal opens
+   - Type "john" -> shows matching applicants
+   - Click result -> navigates to detail
+   - Press Escape -> modal closes
+
+3. **Navigation Badges:**
+   - Create pending applicant -> badge increments
+   - Resolve applicant -> badge decrements
+
+4. **Dashboard:**
+   - Click "This Week" filter -> data changes
+   - Click activity item -> navigates correctly
+   - AI insights show placeholder or real data
+
+5. **Minor Buttons:**
+   - Select applicants, click AI Batch Review -> action happens
+   - Click [...] on row -> dropdown appears
+   - Click Export on case -> PDF downloads
+
+## Files to Create Summary
+
+```
+frontend/src/components/pages/
+├── ComingSoon.jsx           (reusable template)
+├── CompaniesPage.jsx        (KYB)
+├── IntegrationsPage.jsx     (API keys, webhooks)
+├── DeviceIntelligencePage.jsx (BETA)
+├── ReusableKYCPage.jsx      (BETA)
+├── AnalyticsPage.jsx
+├── SettingsPage.jsx
+├── BillingPage.jsx
+└── AuditLogPage.jsx
+
+frontend/src/components/
+└── SearchModal.jsx          (global search)
+
+frontend/src/hooks/
+├── useGlobalSearch.js
+└── useNavigationCounts.js
+```
+
+## Reference
+See `FRONTEND_AUDIT_AND_INTEGRATION_GUIDE.md` for patterns.
+
+## Questions?
+If unclear about which features should be placeholder vs functional, ask first.
+```
+
+---
+
 ## Sprint Summary
 
-| Sprint | Focus | Duration | Priority | Depends On |
-|--------|-------|----------|----------|------------|
-| Sprint 1 | Authentication | 3-5 days | Critical | - |
-| Sprint 2 | API Service Layer | 3-4 days | Critical | Sprint 1 |
-| Sprint 3 | Applicants Module | 5-7 days | Critical | Sprint 2 |
-| Sprint 4 | Document Upload | 4-5 days | High | Sprint 3 |
-| Sprint 5 | Screening Module | 4-5 days | High | Sprint 2 |
-| Sprint 6 | Cases & AI | 4-5 days | Medium | Sprint 2 |
-| Sprint 7 | Polish & Real-time | 3-4 days | Medium | Sprints 3-6 |
+| Sprint | Focus | Duration | Priority | Status |
+|--------|-------|----------|----------|--------|
+| **Sprint 0** | **Backend Dashboard/Screening Endpoints** | **1-2 days** | **Critical** | ✅ **COMPLETE** |
+| Sprint 1 | Authentication | 3-5 days | Critical | ✅ Complete |
+| Sprint 2 | API Service Layer | 3-4 days | Critical | ✅ Complete |
+| Sprint 3 | Applicants Module | 5-7 days | Critical | ✅ Complete |
+| Sprint 4 | Document Upload | 4-5 days | High | ✅ Complete |
+| Sprint 5 | Screening Module | 4-5 days | High | ✅ Complete |
+| Sprint 6 | Cases & AI | 4-5 days | Medium | ✅ Complete |
+| Sprint 7 | Polish & Real-time | 3-4 days | Medium | ✅ Complete |
+| Sprint 8 | Dashboard Integration | 2-3 days | High | ✅ Complete |
+| **Sprint 9** | **Remaining Gaps & Placeholder Pages** | **3-5 days** | **Medium** | 🔲 Pending |
 
-**Total Estimated Time: 26-35 days (~5-7 sprints with 2-week sprints)**
+**ALL CORE FRONTEND SPRINTS COMPLETE (0-8)! Sprint 9 addresses remaining gaps for 100% completion.**
+
+### Sprint Dependencies Diagram
+```
+Sprint 0 (Backend Endpoints) ✅ COMPLETE
+    ├── Sprint 5 (Screening) - /screening/lists ✅ Available
+    └── Sprint 8 (Dashboard) - /dashboard/* endpoints ✅ Available
+
+Sprint 1 (Auth) ✅ → Sprint 2 (API Layer) ✅ → Sprint 3 (Applicants) ✅ → Sprint 4 (Documents) ✅
+                                           ↘ Sprint 5 (Screening) ✅
+                                           ↘ Sprint 6 (Cases & AI) ✅
+                                                                   ↘ Sprint 7 (Polish) ✅
+                                           ↘ Sprint 8 (Dashboard) ✅ COMPLETE
+```
 
 **Parallel Work Possible:**
 - Sprints 4, 5, 6 can run in parallel after Sprint 3

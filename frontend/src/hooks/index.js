@@ -27,6 +27,7 @@ export {
   useDownloadEvidence,
   useApplicantCounts,
   useSearchApplicants,
+  useExportApplicants,
 } from './useApplicants';
 
 // Document hooks
@@ -85,3 +86,30 @@ export {
   useAssistantConversation,
   usePrefetchRiskSummary,
 } from './useAI';
+
+// Dashboard hooks
+export {
+  dashboardKeys,
+  useDashboardStats,
+  useScreeningSummary,
+  useRecentActivity,
+  useRefreshDashboard,
+  useDashboardData,
+} from './useDashboard';
+
+// Real-time updates hook
+export {
+  useRealtimeUpdates,
+  useGlobalRealtimeUpdates,
+} from './useRealtimeUpdates';
+
+// Toast hook
+export { useToast } from './useToast';
+
+// Permission hooks
+export {
+  usePermissions,
+  useDisabledForPermission,
+  PermissionGate,
+  PERMISSIONS,
+} from './usePermissions';

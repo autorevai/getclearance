@@ -2,7 +2,7 @@
 
 AI-native KYC/AML compliance platform - a Sumsub alternative.
 
-**Status: Backend 100% Complete | Frontend Sprint 3 Complete | LIVE 🚀**
+**Status: Backend 100% Complete | Frontend 100% Complete (All Sprints 1-8 Done) | LIVE 🚀**
 
 ## Live Deployment
 
@@ -21,9 +21,13 @@ AI-native KYC/AML compliance platform - a Sumsub alternative.
 | Frontend Auth | ✅ Sprint 1 Complete | Auth0 login/logout, protected routes |
 | Frontend API Layer | ✅ Sprint 2 Complete | Services + React Query hooks ready |
 | Applicants Module | ✅ Sprint 3 Complete | Real API integration, no mock data |
-| Polish & UX | ✅ Sprint 3 Polish | Toast notifications, keyboard shortcuts, batch actions |
+| Document Upload | ✅ Sprint 4 Complete | Multi-file upload, preview, magic byte validation |
+| Screening Module | ✅ Sprint 5 Complete | Run checks, resolve hits, AI suggestions |
+| Cases & AI Module | ✅ Sprint 6 Complete | Real API, toast notifications |
+| Polish & Real-time | ✅ Sprint 7 Complete | WebSocket, permissions, loading states, 404 |
+| Dashboard Integration | ✅ Sprint 8 Complete | Real KPIs, screening summary, activity feed |
 
-**The app is fully functional.** Login, view applicants, approve/reject, search/filter - all working with real data.
+**The app is fully functional.** Login, view applicants, upload documents, run AML screening, approve/reject, search/filter - all working with real data.
 
 ## Quick Start
 
@@ -72,19 +76,22 @@ arq app.workers.config.WorkerSettings
 
 ```
 getclearance/
-├── frontend/                    # React application (UI complete, needs API integration)
+├── frontend/                    # React application (100% complete, all API integration done)
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── AppShell.jsx           # Main layout, navigation
-│   │   │   ├── Dashboard.jsx          # KPI cards
+│   │   │   ├── Dashboard.jsx          # KPI cards (real API)
 │   │   │   ├── ApplicantsList.jsx     # Applicants table (real API)
 │   │   │   ├── ApplicantDetail.jsx    # Individual applicant (real API)
 │   │   │   ├── CreateApplicantModal.jsx # Create new applicant
+│   │   │   ├── DocumentUpload.jsx     # Drag & drop upload with progress
+│   │   │   ├── DocumentList.jsx       # Document grid with status
+│   │   │   ├── DocumentPreview.jsx    # Preview modal with zoom/tabs
 │   │   │   ├── ScreeningChecks.jsx    # AML screening
-│   │   │   ├── CaseManagement.jsx     # Case queue
-│   │   │   ├── ApplicantAssistant.jsx # End-user chat
+│   │   │   ├── CaseManagement.jsx     # Case queue (real API)
+│   │   │   ├── ApplicantAssistant.jsx # AI chat (real API)
 │   │   │   ├── ErrorBoundary.jsx      # Error handling
-│   │   │   └── shared/                # Reusable components (Toast, ConfirmDialog, etc.)
+│   │   │   └── shared/                # Toast, ConfirmDialog, LoadingSpinner, NotFound
 │   │   ├── App.jsx
 │   │   └── index.js
 │   └── package.json
@@ -97,8 +104,9 @@ getclearance/
 │   │   ├── dependencies.py      # Auth, tenant context
 │   │   ├── api/v1/              # API endpoints
 │   │   │   ├── applicants.py    # KYC applicant CRUD
+│   │   │   ├── dashboard.py     # Dashboard KPIs & activity (NEW)
 │   │   │   ├── documents.py     # Document upload/download (R2)
-│   │   │   ├── screening.py     # AML screening (OpenSanctions)
+│   │   │   ├── screening.py     # AML screening (OpenSanctions) + list sources
 │   │   │   ├── cases.py         # Investigation cases
 │   │   │   └── ai.py            # AI risk summaries (Claude)
 │   │   ├── models/              # SQLAlchemy models
@@ -169,14 +177,14 @@ getclearance/
 - [x] Comprehensive test suite
 - [x] Deployed to Railway
 
-### Frontend (Sprint 3 Complete)
+### Frontend (100% Complete - All Sprints Done)
 - [x] Dashboard with KPI cards
 - [x] Applicants list with filtering (real API)
 - [x] Applicant detail with tabs (real API)
 - [x] Create applicant modal
-- [x] AML Screening interface
-- [x] Case management queue
-- [x] AI assistant chat
+- [x] AML Screening interface (real API)
+- [x] Case management queue (real API)
+- [x] AI assistant chat (real API)
 - [x] Dark/light theme
 - [x] **Authentication (Auth0 login/logout)**
 - [x] **API service layer (all endpoints)**
@@ -187,25 +195,64 @@ getclearance/
 - [x] **Batch approve/reject**
 - [x] **URL state sync (shareable filter URLs)**
 - [x] **Error boundaries**
-- [ ] **Document upload UI (Sprint 4)**
-- [ ] **Real-time updates (Sprint 7)**
+- [x] **Document Upload UI (Sprint 4)**
+  - [x] Drag & drop with visual feedback
+  - [x] Multi-file upload for front/back (driver's license, ID card)
+  - [x] Image thumbnail preview before upload
+  - [x] File magic byte validation for security
+  - [x] Upload progress with stages (requesting, uploading, confirming, analyzing)
+  - [x] Document list with status badges and OCR confidence
+  - [x] Preview modal with zoom, rotation, tabs (Preview, Extracted Data, AI Analysis)
+  - [x] Verification checks display (MRZ, OCR quality, fraud detection)
+- [x] **Screening Module UI (Sprint 5)**
+  - [x] Real API integration (no mock data)
+  - [x] Run new screening checks with form
+  - [x] Filter tabs connected to API (all, hits, pending)
+  - [x] Hit resolution with AI suggestions
+  - [x] Loading skeletons and error states
+  - [x] Connected list sources from API
+- [x] **Cases & AI (Sprint 6)**
+  - [x] Case management with real API
+  - [x] AI assistant with real Claude API
+  - [x] Toast notifications for all mutations
+- [x] **Polish & Real-time (Sprint 7)**
+  - [x] WebSocket real-time updates (auto-reconnect, query invalidation)
+  - [x] Permission-based UI controls (usePermissions hook, PermissionGate)
+  - [x] Loading spinners (multiple sizes and variants)
+  - [x] 404 Not Found page with suggestions
+  - [x] Consistent toast.success/error/warning patterns
+- [x] **Dashboard Integration (Sprint 8)**
+  - [x] Real KPI stats from API (today's applicants, approved, rejected, pending)
+  - [x] Real screening summary from API (sanctions, PEP, adverse media counts)
+  - [x] Real activity feed from API with relative timestamps
+  - [x] Loading skeletons for all dashboard widgets
+  - [x] Error states with retry buttons
+  - [x] Auto-refresh every 60 seconds
+  - [x] Manual refresh button
 
-## Frontend Work Remaining
+## Frontend Sprints - All Complete
 
 | Sprint | Focus | Status |
 |--------|-------|--------|
+| 0 | Backend Dashboard/Screening Endpoints | ✅ Complete |
 | 1 | Authentication (Auth0) | ✅ Complete |
 | 2 | API Service Layer | ✅ Complete |
 | 3 | Applicants Module | ✅ Complete |
 | 3+ | Polish & UX | ✅ Complete |
-| 4 | Document Upload | 🔲 Pending |
-| 5 | Screening Module | 🔲 Pending |
-| 6 | Cases & AI | 🔲 Pending |
-| 7 | Polish & Real-time | 🔲 Pending |
+| 4 | Document Upload | ✅ Complete |
+| 5 | Screening Module | ✅ Complete |
+| 6 | Cases & AI | ✅ Complete |
+| 7 | Polish & Real-time | ✅ Complete |
+| 8 | Dashboard Integration | ✅ Complete |
 
-**Remaining: ~12-15 days (Sprints 4-7)**
+**All frontend sprints complete! No remaining frontend work.**
 
 ## API Endpoints (All Working)
+
+### Dashboard (NEW - Sprint 0)
+- `GET /api/v1/dashboard/stats` - KPI statistics (today's applicants, approved, rejected, pending)
+- `GET /api/v1/dashboard/screening-summary` - Screening hit counts by type
+- `GET /api/v1/dashboard/activity` - Recent activity feed
 
 ### Applicants
 - `GET /api/v1/applicants` - List applicants
@@ -226,6 +273,7 @@ getclearance/
 - `GET /api/v1/screening/checks` - List checks
 - `PATCH /api/v1/screening/hits/{id}` - Resolve hit
 - `GET /api/v1/screening/hits/{id}/suggestion` - AI resolution suggestion
+- `GET /api/v1/screening/lists` - Connected list sources (OFAC, EU, UN, UK, OpenSanctions)
 
 ### Cases
 - `GET /api/v1/cases` - List cases
@@ -359,11 +407,11 @@ REACT_APP_AUTH0_AUDIENCE=https://api.getclearance.vercel.app
 
 ```
 Backend:  ████████████████████ 100%  - Production ready, deployed to Railway
-Frontend: █████████████████░░░  85%  - Sprint 3 complete, Sprints 4-7 remaining
-Overall:  █████████████████░░░  92%  - Core functionality working
+Frontend: ████████████████████ 100%  - All sprints complete (1-8)
+Overall:  ████████████████████ 100%  - Full platform complete and deployed
 ```
 
-**Next Step:** Frontend Sprint 4 (Document Upload Integration)
+**All development complete!** The platform is fully functional with real data integration across all components.
 
 ---
 

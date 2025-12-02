@@ -24,3 +24,4 @@ export { DocumentsService, uploadToPresignedUrl, uploadDocumentFlow } from './do
 export { ScreeningService } from './screening';
 export { CasesService } from './cases';
 export { AIService } from './ai';
+export { DashboardService } from './dashboard';
