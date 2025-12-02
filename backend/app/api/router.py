@@ -17,7 +17,7 @@ Router structure:
 
 from fastapi import APIRouter
 
-from app.api.v1 import applicants, documents, screening, cases, ai, auth
+from app.api.v1 import applicants, documents, screening, cases, ai, auth, dashboard
 
 # Main API router
 api_router = APIRouter()
@@ -57,6 +57,12 @@ api_router.include_router(
     auth.router,
     prefix="/auth",
     tags=["Auth"],
+)
+
+api_router.include_router(
+    dashboard.router,
+    prefix="/dashboard",
+    tags=["Dashboard"],
 )
 
 # TODO: Add remaining routers as they're built
