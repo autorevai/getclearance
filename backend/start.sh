@@ -1,9 +1,12 @@
 #!/bin/bash
 set -e
 
+# Railway sets PORT, but we need to ensure consistency
+export PORT=${PORT:-8000}
+
 echo "🚀 Starting GetClearance Backend..."
 echo "   Environment: ${ENVIRONMENT:-development}"
-echo "   Port: ${PORT:-8000}"
+echo "   Port: ${PORT}"
 
 # Fix alembic version if needed (one-time fix for migration conflict)
 echo "📦 Checking database migrations..."

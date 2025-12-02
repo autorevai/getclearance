@@ -5,9 +5,13 @@ Create Pax Markets tenant and seed data.
 Usage:
     cd backend
     python -m scripts.create_pax_tenant
+
+    # For Railway production:
+    DATABASE_URL="postgresql+asyncpg://postgres:PASSWORD@HOST:PORT/railway" python -m scripts.create_pax_tenant
 """
 
 import asyncio
+import os
 import secrets
 import sys
 from pathlib import Path
@@ -19,13 +23,21 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.config import settings
+# Allow DATABASE_URL override for production
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    from app.config import settings
+    DATABASE_URL = settings.database_url_async
+elif "+asyncpg" not in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+
 from app.models.tenant import Tenant, User
 
 
 async def create_pax_tenant():
     """Create Pax Markets tenant with admin user."""
-    engine = create_async_engine(settings.database_url_async)
+    print(f"Connecting to database...")
+    engine = create_async_engine(DATABASE_URL)
     async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with async_session() as session:
