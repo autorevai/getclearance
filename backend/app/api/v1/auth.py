@@ -295,3 +295,92 @@ async def seed_demo_data(
         tenant_id=tenant_id,
         applicants_created=created,
     )
+
+
+# ===========================================
+# DEBUG ENDPOINTS (Development/Testing only)
+# ===========================================
+
+class DebugUserResponse(BaseModel):
+    """Response from debug user lookup."""
+    found: bool
+    user_id: str | None = None
+    tenant_id: str | None = None
+    email: str | None = None
+    role: str | None = None
+    auth0_id: str | None = None
+
+
+@router.get(
+    "/debug/user-lookup",
+    response_model=DebugUserResponse,
+    summary="Debug: Look up user by email",
+)
+async def debug_user_lookup(
+    email: str,
+    db: AsyncSession = Depends(get_db),
+) -> DebugUserResponse:
+    """
+    Debug endpoint to verify user exists in database.
+
+    This is used to test that the user/tenant was created correctly.
+    """
+    result = await db.execute(
+        select(User).where(User.email == email)
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        return DebugUserResponse(found=False)
+
+    return DebugUserResponse(
+        found=True,
+        user_id=str(user.id),
+        tenant_id=str(user.tenant_id),
+        email=user.email,
+        role=user.role,
+        auth0_id=user.auth0_id,
+    )
+
+
+class DebugApplicantsResponse(BaseModel):
+    """Response from debug applicants count."""
+    tenant_id: str
+    count: int
+    sample: list[dict] = []
+
+
+@router.get(
+    "/debug/applicants-count",
+    response_model=DebugApplicantsResponse,
+    summary="Debug: Count applicants for a tenant",
+)
+async def debug_applicants_count(
+    tenant_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> DebugApplicantsResponse:
+    """
+    Debug endpoint to verify applicants exist for a tenant.
+    """
+    from app.models.applicant import Applicant
+
+    result = await db.execute(
+        select(func.count(Applicant.id)).where(Applicant.tenant_id == tenant_id)
+    )
+    count = result.scalar() or 0
+
+    # Get sample of 3 applicants
+    result = await db.execute(
+        select(Applicant).where(Applicant.tenant_id == tenant_id).limit(3)
+    )
+    applicants = result.scalars().all()
+    sample = [
+        {"id": str(a.id), "name": f"{a.first_name} {a.last_name}", "status": a.status}
+        for a in applicants
+    ]
+
+    return DebugApplicantsResponse(
+        tenant_id=tenant_id,
+        count=count,
+        sample=sample,
+    )
