@@ -69,7 +69,7 @@ class ScreeningCheckResponse(BaseModel):
     id: UUID
     entity_type: str
     screened_name: str
-    screened_dob: str | None
+    screened_dob: date | None
     screened_country: str | None
     check_types: list[str]
     status: str
@@ -77,7 +77,7 @@ class ScreeningCheckResponse(BaseModel):
     started_at: datetime
     completed_at: datetime | None
     hits: list[ScreeningHitResponse] = []
-    
+
     model_config = {"from_attributes": True}
 
 
