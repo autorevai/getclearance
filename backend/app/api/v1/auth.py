@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Header, status
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -187,3 +187,111 @@ def get_default_permissions(role: str) -> list[str]:
         ],
     }
     return permissions_by_role.get(role, permissions_by_role["viewer"])
+
+
+# ===========================================
+# SEED TEST DATA (Development/Demo only)
+# ===========================================
+import random
+from datetime import date, datetime, timedelta, timezone
+
+FIRST_NAMES = ["James", "Mary", "John", "Patricia", "Robert", "Jennifer", "Michael", "Linda", "Wei", "Priya"]
+LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Chen", "Patel", "Kim"]
+COUNTRIES = ["USA", "GBR", "CAN", "AUS", "DEU", "FRA", "JPN", "SGP"]
+
+
+class SeedResponse(BaseModel):
+    """Response from seed endpoint."""
+    message: str
+    tenant_id: str
+    applicants_created: int
+
+
+@router.post(
+    "/seed-demo-data",
+    response_model=SeedResponse,
+    summary="Seed demo applicants for a tenant",
+)
+async def seed_demo_data(
+    tenant_id: str,
+    count: int = 10,
+    db: AsyncSession = Depends(get_db),
+) -> SeedResponse:
+    """
+    Seed demo applicant data for testing.
+
+    Only works if tenant has < 5 applicants (prevents duplicate seeding).
+    """
+    from app.models.applicant import Applicant
+
+    # Verify tenant exists
+    result = await db.execute(
+        select(Tenant).where(Tenant.id == tenant_id)
+    )
+    tenant = result.scalar_one_or_none()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # Check if already seeded
+    result = await db.execute(
+        select(func.count(Applicant.id)).where(Applicant.tenant_id == tenant_id)
+    )
+    existing_count = result.scalar() or 0
+    if existing_count >= 5:
+        return SeedResponse(
+            message=f"Tenant already has {existing_count} applicants, skipping seed",
+            tenant_id=tenant_id,
+            applicants_created=0,
+        )
+
+    # Seed applicants
+    statuses = ["pending", "in_progress", "review", "approved", "rejected"]
+    status_weights = [0.1, 0.15, 0.15, 0.45, 0.15]
+
+    created = 0
+    for i in range(count):
+        first_name = random.choice(FIRST_NAMES)
+        last_name = random.choice(LAST_NAMES)
+        status = random.choices(statuses, weights=status_weights)[0]
+
+        risk_score = random.randint(0, 100)
+        if status == "rejected":
+            risk_score = random.randint(70, 100)
+        elif status == "approved":
+            risk_score = random.randint(0, 40)
+
+        flags = []
+        if risk_score > 60:
+            if random.random() > 0.5:
+                flags.append("pep")
+            if random.random() > 0.7:
+                flags.append("sanctions")
+
+        created_at = datetime.now(timezone.utc) - timedelta(days=random.randint(1, 60))
+
+        applicant = Applicant(
+            tenant_id=uuid4().hex if not tenant_id else tenant_id,
+            external_id=f"demo_{secrets.token_hex(6)}",
+            email=f"{first_name.lower()}.{last_name.lower()}{random.randint(1, 99)}@example.com",
+            phone=f"+1{random.randint(2000000000, 9999999999)}",
+            first_name=first_name,
+            last_name=last_name,
+            date_of_birth=date(random.randint(1960, 2000), random.randint(1, 12), random.randint(1, 28)),
+            nationality=random.choice(COUNTRIES),
+            country_of_residence=random.choice(COUNTRIES),
+            status=status,
+            risk_score=risk_score,
+            flags=flags,
+            source="demo_seed",
+            created_at=created_at,
+        )
+        db.add(applicant)
+        created += 1
+
+    await db.commit()
+
+    return SeedResponse(
+        message=f"Successfully seeded {created} demo applicants",
+        tenant_id=tenant_id,
+        applicants_created=created,
+    )
