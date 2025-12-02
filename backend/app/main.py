@@ -153,7 +153,7 @@ def create_application() -> FastAPI:
     async def health_check() -> dict:
         """
         Health check endpoint for load balancers and monitoring.
-        
+
         Returns:
             dict: Status and version info
         """
@@ -161,6 +161,17 @@ def create_application() -> FastAPI:
             "status": "healthy",
             "version": settings.app_version,
             "environment": settings.environment,
+        }
+
+    @app.get("/debug/auth-config", tags=["Debug"])
+    async def debug_auth_config() -> dict:
+        """Debug endpoint to check Auth0 configuration (no secrets exposed)."""
+        return {
+            "auth0_domain_set": bool(settings.auth0_domain),
+            "auth0_domain": settings.auth0_domain if settings.auth0_domain else "NOT SET",
+            "auth0_audience": settings.auth0_audience,
+            "auth0_issuer": settings.auth0_issuer,
+            "cors_origins": settings.cors_origins_list,
         }
 
     @app.get("/health/ready", tags=["Health"])
