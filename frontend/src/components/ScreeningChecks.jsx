@@ -195,7 +195,7 @@ export default function ScreeningChecks() {
   const [activeFilter, setActiveFilter] = useState('all');
   const [showNewCheck, setShowNewCheck] = useState(false);
   const [selectedCheck, setSelectedCheck] = useState(null);
-  const { addToast } = useToast();
+  const toast = useToast();
 
   // Form state for new check modal
   const [formData, setFormData] = useState({
@@ -241,7 +241,7 @@ export default function ScreeningChecks() {
     e.preventDefault();
 
     if (!formData.name.trim()) {
-      addToast('Please enter a name to screen', 'error');
+      toast.error('Please enter a name to screen');
       return;
     }
 
@@ -257,12 +257,12 @@ export default function ScreeningChecks() {
       setFormData({ entity_type: 'individual', name: '', country: '', date_of_birth: '' });
 
       if (result.hit_count > 0) {
-        addToast(`${result.hit_count} potential match${result.hit_count > 1 ? 'es' : ''} found`, 'warning');
+        toast.warning(`${result.hit_count} potential match${result.hit_count > 1 ? 'es' : ''} found`);
       } else {
-        addToast('Screening clear - no matches found', 'success');
+        toast.success('Screening clear - no matches found');
       }
     } catch (err) {
-      addToast(`Screening failed: ${err.message}`, 'error');
+      toast.error(`Screening failed: ${err.message}`);
     }
   };
 
@@ -274,11 +274,11 @@ export default function ScreeningChecks() {
         resolution,
         checkId: selectedCheck?.id
       });
-      addToast(`Hit marked as ${resolution === 'confirmed_false' ? 'clear' : 'true match'}`, 'success');
+      toast.success(`Hit marked as ${resolution === 'confirmed_false' ? 'clear' : 'true match'}`);
       // Refresh the selected check data
       refetch();
     } catch (err) {
-      addToast(`Resolution failed: ${err.message}`, 'error');
+      toast.error(`Resolution failed: ${err.message}`);
     }
   };
 
@@ -1135,7 +1135,8 @@ export default function ScreeningChecks() {
                 <div className="panel-section">
                   <div className="panel-section-title">Screening Hits ({selectedCheck.hits.length})</div>
                   {selectedCheck.hits.map((hit) => {
-                    const confidencePercent = Math.round((hit.confidence || 0) * 100);
+                    // Confidence is already a percentage from backend (e.g., 84.36)
+                    const confidencePercent = Math.round(hit.confidence || 0);
                     const isResolved = hit.resolution_status !== 'pending';
 
                     return (

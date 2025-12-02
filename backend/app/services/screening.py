@@ -206,9 +206,19 @@ class ScreeningService:
             # Extract matched fields
             matched_fields = self._extract_matched_fields(properties)
             
-            # Get the best name match
+            # Get the best name match - prefer English/Latin names over foreign scripts
             names = properties.get("name", [])
-            matched_name = names[0] if names else result.get("caption", "Unknown")
+            matched_name = result.get("caption", "Unknown")  # caption is usually English
+            # If caption not available, find first Latin-script name
+            if matched_name == "Unknown" and names:
+                for name in names:
+                    # Check if name is mostly ASCII/Latin characters
+                    if name and sum(1 for c in name if ord(c) < 128) > len(name) * 0.5:
+                        matched_name = name
+                        break
+                # Fallback to first name if no Latin name found
+                if matched_name == "Unknown":
+                    matched_name = names[0]
             
             # Create hit result
             hit = ScreeningHitResult(
