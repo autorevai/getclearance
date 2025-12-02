@@ -206,31 +206,83 @@ async def verify_token(
 
 async def get_current_user(
     token: Annotated[TokenPayload, Depends(verify_token)],
+    db: Annotated[AsyncSession, Depends(get_db)],
 ) -> CurrentUser:
     """
     Get current authenticated user from token.
-    
+
     Args:
         token: Verified JWT token payload
-    
+        db: Database session for user lookup
+
     Returns:
         CurrentUser: User context with tenant and permissions
-    
+
     Raises:
-        HTTPException: If tenant_id not in token
+        HTTPException: If tenant_id not in token and user not found
     """
-    if not token.tenant_id:
+    # If token has tenant_id, use it directly
+    if token.tenant_id:
+        return CurrentUser(
+            id=token.sub,
+            tenant_id=UUID(token.tenant_id),
+            email=token.email,
+            role=token.role or "viewer",
+            permissions=token.permissions,
+        )
+
+    # Fallback: Look up user by Auth0 ID or email in database
+    # This handles cases where Auth0 Action hasn't run yet
+    from sqlalchemy import select
+    from app.models.tenant import User
+
+    # Try to find user by Auth0 ID first
+    result = await db.execute(
+        select(User).where(User.auth0_id == token.sub)
+    )
+    user = result.scalar_one_or_none()
+
+    # If not found by auth0_id, try by email
+    if not user and token.email:
+        result = await db.execute(
+            select(User).where(User.email == token.email)
+        )
+        user = result.scalar_one_or_none()
+
+        # Link Auth0 ID to existing user
+        if user:
+            user.auth0_id = token.sub
+            await db.commit()
+
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="User not associated with a tenant",
+            detail="User not associated with a tenant. Please contact support.",
         )
-    
+
+    # Get default permissions for role if not in token
+    permissions = token.permissions
+    if not permissions:
+        permissions_by_role = {
+            "admin": ["read:applicants", "write:applicants", "delete:applicants",
+                     "read:documents", "write:documents", "read:screening",
+                     "write:screening", "read:cases", "write:cases",
+                     "read:settings", "write:settings", "admin:*"],
+            "reviewer": ["read:applicants", "write:applicants", "read:documents",
+                        "write:documents", "read:screening", "write:screening",
+                        "read:cases", "write:cases"],
+            "analyst": ["read:applicants", "read:documents", "read:screening",
+                       "read:cases", "write:cases"],
+            "viewer": ["read:applicants", "read:documents", "read:screening", "read:cases"],
+        }
+        permissions = permissions_by_role.get(user.role, permissions_by_role["viewer"])
+
     return CurrentUser(
         id=token.sub,
-        tenant_id=UUID(token.tenant_id),
-        email=token.email,
-        role=token.role or "viewer",
-        permissions=token.permissions,
+        tenant_id=user.tenant_id,
+        email=user.email,
+        role=user.role or "viewer",
+        permissions=permissions,
     )
 
 
