@@ -14,6 +14,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+import logging
 from app.dependencies import TenantDB, AuthenticatedUser, require_permission
 from app.models import ScreeningCheck, ScreeningHit, ScreeningList, Applicant
 from app.services.screening import (
@@ -21,6 +22,8 @@ from app.services.screening import (
     ScreeningServiceError,
     ScreeningConfigError,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -183,13 +186,17 @@ async def run_screening(
     try:
         # Run screening via OpenSanctions
         countries = [screened_country] if screened_country else None
-        
+
+        logger.info(f"Running screening for: {screened_name}, countries={countries}, is_configured={screening_service.is_configured}")
+
         screening_result = await screening_service.check_individual(
             name=screened_name,
             birth_date=screened_dob,
             countries=countries,
         )
-        
+
+        logger.info(f"Screening result: status={screening_result.status}, hits={len(screening_result.hits)}")
+
         # Get or create screening list record for audit trail
         list_record = await _get_or_create_screening_list(
             db=db,
@@ -197,9 +204,10 @@ async def run_screening(
             version_id=screening_result.list_version_id,
             list_type="combined",
         )
-        
+
         # Create hit records
         for hit_result in screening_result.hits:
+            logger.info(f"Creating hit: {hit_result.matched_name} ({hit_result.confidence}%)")
             hit = ScreeningHit(
                 check_id=check.id,
                 list_id=list_record.id if list_record else None,
@@ -217,14 +225,14 @@ async def run_screening(
                 resolution_status="pending",
             )
             db.add(hit)
-        
+
         # Update check status
         check.status = screening_result.status
         check.hit_count = len(screening_result.hits)
         check.completed_at = datetime.utcnow()
-        
+
         await db.flush()
-        
+
         # Reload with hits for response
         query = (
             select(ScreeningCheck)
@@ -233,16 +241,18 @@ async def run_screening(
         )
         result = await db.execute(query)
         check = result.scalar_one()
-        
+
+        logger.info(f"Returning check with {len(check.hits)} hits")
         return ScreeningCheckResponse.model_validate(check)
-        
-    except ScreeningConfigError:
+
+    except ScreeningConfigError as e:
         # OpenSanctions not configured - return mock response for development
+        logger.warning(f"ScreeningConfigError: {e} - returning clear status")
         check.status = "clear"
         check.hit_count = 0
         check.completed_at = datetime.utcnow()
         await db.flush()
-        
+
         return ScreeningCheckResponse.model_validate(check)
         
     except ScreeningServiceError as e:
