@@ -13,7 +13,7 @@ Production:
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
@@ -97,14 +97,42 @@ def create_application() -> FastAPI:
     # -----------------------------------------
     # EXCEPTION HANDLERS
     # -----------------------------------------
+    def _get_cors_headers(request: Request) -> dict:
+        """Get CORS headers for the request origin if allowed."""
+        origin = request.headers.get("origin", "")
+        if origin in settings.cors_origins_list:
+            return {
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+            }
+        return {}
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+        """Handle HTTP exceptions with CORS headers."""
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=_get_cors_headers(request),
+        )
+
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         """Catch-all exception handler for unhandled errors."""
+        import traceback
+
+        # Log the error
+        print(f"ERROR: {type(exc).__name__}: {exc}")
+        traceback.print_exc()
+
+        headers = _get_cors_headers(request)
+
         # In production, don't expose internal error details
         if settings.is_production():
             return JSONResponse(
                 status_code=500,
                 content={"detail": "Internal server error"},
+                headers=headers,
             )
         # In development, include error details
         return JSONResponse(
@@ -113,6 +141,7 @@ def create_application() -> FastAPI:
                 "detail": str(exc),
                 "type": type(exc).__name__,
             },
+            headers=headers,
         )
 
     # -----------------------------------------
