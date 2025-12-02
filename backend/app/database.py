@@ -172,9 +172,18 @@ async def set_tenant_context(session: AsyncSession, tenant_id: str) -> None:
             await set_tenant_context(db, str(tenant.id))
             yield db
     """
+    # PostgreSQL SET commands don't support parameterized queries well with asyncpg
+    # We validate the tenant_id is a valid UUID to prevent SQL injection
+    from uuid import UUID as PyUUID
+    try:
+        # Validate it's a proper UUID
+        validated_uuid = str(PyUUID(tenant_id))
+    except (ValueError, TypeError):
+        raise ValueError(f"Invalid tenant_id format: {tenant_id}")
+
+    # Use format string since SET doesn't support $1 style parameters
     await session.execute(
-        text("SET LOCAL app.current_tenant_id = :tenant_id"),
-        {"tenant_id": tenant_id},
+        text(f"SET LOCAL app.current_tenant_id = '{validated_uuid}'")
     )
 
 
