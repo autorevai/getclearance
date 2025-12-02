@@ -1,165 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  Search,
-  Filter,
   Shield,
   AlertTriangle,
   CheckCircle2,
-  Clock,
   User,
   Building2,
-  Globe,
   Calendar,
-  ChevronDown,
-  ExternalLink,
   RefreshCw,
   Sparkles,
   Eye,
-  MoreHorizontal,
-  ArrowUpDown,
-  Download,
   Play,
   Settings,
-  Database
+  Database,
+  Loader2,
+  XCircle
 } from 'lucide-react';
-
-const mockChecks = [
-  {
-    id: 'chk-001',
-    entity: {
-      type: 'individual',
-      name: 'Sofia Reyes',
-      country: 'Mexico',
-      countryCode: 'MX'
-    },
-    status: 'hit',
-    matchStatus: 'pending_review',
-    createdAt: '2025-11-28T08:15:00Z',
-    hitCount: 2,
-    hits: [
-      {
-        source: 'OFAC SDN',
-        listVersion: 'OFAC-2025-11-27',
-        confidence: 85,
-        matchedFields: ['name', 'country'],
-        details: 'Potential name match with S. Reyes on OFAC SDN list'
-      },
-      {
-        source: 'EU Sanctions',
-        listVersion: 'EU-2025-11-25',
-        confidence: 62,
-        matchedFields: ['name'],
-        details: 'Partial name match - different middle name'
-      }
-    ]
-  },
-  {
-    id: 'chk-002',
-    entity: {
-      type: 'individual',
-      name: 'Emily Parker',
-      country: 'United States',
-      countryCode: 'US'
-    },
-    status: 'clear',
-    matchStatus: 'clear',
-    createdAt: '2025-11-25T13:28:32Z',
-    hitCount: 0,
-    hits: []
-  },
-  {
-    id: 'chk-003',
-    entity: {
-      type: 'company',
-      name: 'Sterling Holdings',
-      country: 'South Africa',
-      countryCode: 'ZA'
-    },
-    status: 'clear',
-    matchStatus: 'clear',
-    createdAt: '2025-11-24T10:00:00Z',
-    hitCount: 0,
-    hits: []
-  },
-  {
-    id: 'chk-004',
-    entity: {
-      type: 'individual',
-      name: 'Nathan Brooks',
-      country: 'South Africa',
-      countryCode: 'ZA'
-    },
-    status: 'hit',
-    matchStatus: 'confirmed_clear',
-    createdAt: '2023-10-20T16:39:00Z',
-    hitCount: 1,
-    hits: [
-      {
-        source: 'OpenSanctions PEP',
-        listVersion: 'OS-PEP-2023-10-19',
-        confidence: 72,
-        matchedFields: ['name', 'date_of_birth', 'nationality'],
-        details: 'PEP Tier 2 - Spouse of parliamentary official'
-      }
-    ],
-    resolution: {
-      status: 'cleared',
-      reason: 'Indirect PEP relationship, low financial crime risk',
-      reviewer: 'Review Team',
-      resolvedAt: '2023-10-20T16:39:20Z'
-    }
-  },
-  {
-    id: 'chk-005',
-    entity: {
-      type: 'individual',
-      name: 'Derek Collins',
-      country: 'United States',
-      countryCode: 'US'
-    },
-    status: 'hit',
-    matchStatus: 'confirmed_true',
-    createdAt: '2023-10-20T16:08:11Z',
-    hitCount: 1,
-    hits: [
-      {
-        source: 'Internal Blocklist',
-        listVersion: 'INT-2023-10-01',
-        confidence: 100,
-        matchedFields: ['document_number', 'name'],
-        details: 'Previously rejected for document forgery'
-      }
-    ],
-    resolution: {
-      status: 'confirmed',
-      reason: 'Known fraudulent actor',
-      reviewer: 'AI Detection',
-      resolvedAt: '2023-10-20T16:08:11Z'
-    }
-  }
-];
-
-const mockListSources = [
-  { id: 'ofac', name: 'OFAC SDN', version: 'OFAC-2025-11-27', lastUpdated: '2025-11-27T00:00:00Z', entityCount: 12847 },
-  { id: 'eu', name: 'EU Consolidated', version: 'EU-2025-11-25', lastUpdated: '2025-11-25T00:00:00Z', entityCount: 2156 },
-  { id: 'un', name: 'UN Security Council', version: 'UN-2025-11-20', lastUpdated: '2025-11-20T00:00:00Z', entityCount: 892 },
-  { id: 'uk', name: 'UK Sanctions', version: 'UK-2025-11-26', lastUpdated: '2025-11-26T00:00:00Z', entityCount: 3421 },
-  { id: 'opensanctions', name: 'OpenSanctions', version: 'OS-2025-11-27', lastUpdated: '2025-11-27T06:00:00Z', entityCount: 89234 },
-];
+import { useScreeningChecks, useRunScreening, useResolveHit, useHitSuggestion, useScreeningLists } from '../hooks/useScreening';
+import { useToast } from '../contexts/ToastContext';
 
 const statusConfig = {
   pending_review: { label: 'Pending Review', color: 'warning' },
   confirmed_clear: { label: 'Confirmed Clear', color: 'success' },
   confirmed_true: { label: 'True Positive', color: 'danger' },
   clear: { label: 'Clear', color: 'success' },
-};
-
-const countryFlags = {
-  US: '🇺🇸',
-  ZA: '🇿🇦',
-  MX: '🇲🇽',
-  AE: '🇦🇪',
-  GB: '🇬🇧',
 };
 
 const formatDateTime = (dateStr) => {
@@ -173,17 +36,251 @@ const formatDateTime = (dateStr) => {
   });
 };
 
+// Helper to check if date is today
+const isToday = (dateStr) => {
+  if (!dateStr) return false;
+  const date = new Date(dateStr);
+  const today = new Date();
+  return date.toDateString() === today.toDateString();
+};
+
+// Country code to flag emoji (ISO 3166-1 alpha-2 to regional indicator)
+const countryToFlag = (countryCode) => {
+  if (!countryCode || countryCode.length !== 2) return '🌍';
+  const code = countryCode.toUpperCase();
+  const offset = 127397; // Regional indicator symbol offset
+  const flag = String.fromCodePoint(...[...code].map(c => c.charCodeAt(0) + offset));
+  return flag;
+};
+
+// Country code to name mapping for display
+const countryCodeToName = {
+  US: 'United States', GB: 'United Kingdom', CA: 'Canada', AU: 'Australia',
+  DE: 'Germany', FR: 'France', JP: 'Japan', KR: 'South Korea', IN: 'India',
+  BR: 'Brazil', MX: 'Mexico', ZA: 'South Africa', AE: 'UAE', SA: 'Saudi Arabia',
+  SG: 'Singapore', HK: 'Hong Kong', IL: 'Israel', NL: 'Netherlands', CH: 'Switzerland',
+  IE: 'Ireland', RU: 'Russia', CN: 'China', IR: 'Iran', KP: 'North Korea',
+  SY: 'Syria', CU: 'Cuba', VE: 'Venezuela', MM: 'Myanmar', BY: 'Belarus',
+  UA: 'Ukraine', TR: 'Turkey', EG: 'Egypt', NG: 'Nigeria', PK: 'Pakistan',
+};
+
+// AI Suggestion Component for hit detail panel
+function HitAISuggestion({ hitId, onResolve, isResolving }) {
+  const { data: suggestion, isLoading, error } = useHitSuggestion(hitId);
+
+  if (isLoading) {
+    return (
+      <div className="ai-review-section" style={{ opacity: 0.7 }}>
+        <div className="ai-review-header">
+          <Loader2 size={16} className="spinning" />
+          Analyzing hit...
+        </div>
+        <div className="ai-review-text" style={{ color: 'var(--text-muted)' }}>
+          AI is reviewing this match against available data...
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="ai-review-section" style={{ borderColor: 'var(--danger)' }}>
+        <div className="ai-review-header" style={{ color: 'var(--danger)' }}>
+          <XCircle size={16} />
+          AI Review Unavailable
+        </div>
+        <div className="ai-review-text">
+          Unable to get AI recommendation. Please review manually.
+        </div>
+        <div className="ai-actions">
+          <button
+            className="btn btn-success"
+            style={{ flex: 1 }}
+            onClick={() => onResolve('confirmed_false')}
+            disabled={isResolving}
+          >
+            {isResolving ? <Loader2 size={14} className="spinning" /> : <CheckCircle2 size={14} />}
+            Mark as Clear
+          </button>
+          <button
+            className="btn btn-danger"
+            style={{ flex: 1 }}
+            onClick={() => onResolve('confirmed_true')}
+            disabled={isResolving}
+          >
+            {isResolving ? <Loader2 size={14} className="spinning" /> : <AlertTriangle size={14} />}
+            Confirm Match
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ai-review-section">
+      <div className="ai-review-header">
+        <Sparkles size={16} />
+        AI Review Recommendation
+      </div>
+      <div className="ai-review-text">
+        {suggestion?.reasoning || 'No AI analysis available for this hit.'}
+      </div>
+      {suggestion && (
+        <div style={{ marginBottom: 16, fontSize: 14 }}>
+          Suggested: <strong>{suggestion.suggested_resolution === 'confirmed_false' ? 'Clear (False Positive)' : 'True Match'}</strong>
+          {suggestion.confidence && ` (${Math.round(suggestion.confidence * 100)}% confidence)`}
+        </div>
+      )}
+      <div className="ai-actions">
+        <button
+          className="btn btn-success"
+          style={{ flex: 1 }}
+          onClick={() => onResolve('confirmed_false')}
+          disabled={isResolving}
+        >
+          {isResolving ? <Loader2 size={14} className="spinning" /> : <CheckCircle2 size={14} />}
+          Mark as Clear
+        </button>
+        <button
+          className="btn btn-danger"
+          style={{ flex: 1 }}
+          onClick={() => onResolve('confirmed_true')}
+          disabled={isResolving}
+        >
+          {isResolving ? <Loader2 size={14} className="spinning" /> : <AlertTriangle size={14} />}
+          Confirm Match
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Loading Skeleton Component
+function ScreeningSkeleton() {
+  return (
+    <div className="screening-skeleton">
+      <div className="skeleton-row" style={{ height: 60, marginBottom: 12 }} />
+      <div className="skeleton-row" style={{ height: 60, marginBottom: 12 }} />
+      <div className="skeleton-row" style={{ height: 60, marginBottom: 12 }} />
+      <div className="skeleton-row" style={{ height: 60, marginBottom: 12 }} />
+      <div className="skeleton-row" style={{ height: 60 }} />
+    </div>
+  );
+}
+
+// Error State Component
+function ErrorState({ message, onRetry }) {
+  return (
+    <div className="error-state" style={{
+      textAlign: 'center',
+      padding: '60px 20px',
+      background: 'var(--bg-secondary)',
+      borderRadius: 12,
+      border: '1px solid var(--border-color)'
+    }}>
+      <XCircle size={48} style={{ color: 'var(--danger)', marginBottom: 16 }} />
+      <h3 style={{ marginBottom: 8 }}>Failed to Load Screening Checks</h3>
+      <p style={{ color: 'var(--text-secondary)', marginBottom: 20 }}>{message}</p>
+      {onRetry && (
+        <button className="btn btn-primary" onClick={onRetry}>
+          <RefreshCw size={14} />
+          Try Again
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function ScreeningChecks() {
   const [activeFilter, setActiveFilter] = useState('all');
   const [showNewCheck, setShowNewCheck] = useState(false);
-  const [searchName, setSearchName] = useState('');
   const [selectedCheck, setSelectedCheck] = useState(null);
+  const { addToast } = useToast();
 
-  const filteredChecks = activeFilter === 'all' 
-    ? mockChecks 
-    : activeFilter === 'hits'
-    ? mockChecks.filter(c => c.status === 'hit')
-    : mockChecks.filter(c => c.matchStatus === 'pending_review');
+  // Form state for new check modal
+  const [formData, setFormData] = useState({
+    entity_type: 'individual',
+    name: '',
+    country: '',
+    date_of_birth: ''
+  });
+
+  // Map UI filter to API filter
+  const apiFilter = useMemo(() => {
+    if (activeFilter === 'hits') return { status: 'hit' };
+    if (activeFilter === 'pending') return { status: 'pending_review' };
+    return {};
+  }, [activeFilter]);
+
+  // Fetch screening checks from API
+  const { data, isLoading, error, refetch } = useScreeningChecks(apiFilter);
+
+  // Fetch list sources from API
+  const { data: listSourcesData } = useScreeningLists();
+
+  // Mutations
+  const runScreeningMutation = useRunScreening();
+  const resolveHitMutation = useResolveHit();
+
+  // Calculate stats from real data
+  const stats = useMemo(() => {
+    const items = data?.items || [];
+    return {
+      pendingReview: items.filter(c => c.hits?.some(h => h.resolution_status === 'pending')).length,
+      totalHits: items.filter(c => c.status === 'hit').length,
+      truePositives: items.filter(c => c.hits?.some(h => h.resolution_status === 'confirmed_true')).length,
+      checksToday: items.filter(c => isToday(c.started_at || c.created_at)).length,
+    };
+  }, [data]);
+
+  const checks = data?.items || [];
+  const listSources = listSourcesData?.items || [];
+
+  // Handle running a new screening check
+  const handleRunCheck = async (e) => {
+    e.preventDefault();
+
+    if (!formData.name.trim()) {
+      addToast('Please enter a name to screen', 'error');
+      return;
+    }
+
+    try {
+      const result = await runScreeningMutation.mutateAsync({
+        name: formData.name,
+        country: formData.country || undefined,
+        date_of_birth: formData.date_of_birth || undefined,
+        check_types: ['sanctions', 'pep']
+      });
+
+      setShowNewCheck(false);
+      setFormData({ entity_type: 'individual', name: '', country: '', date_of_birth: '' });
+
+      if (result.hit_count > 0) {
+        addToast(`${result.hit_count} potential match${result.hit_count > 1 ? 'es' : ''} found`, 'warning');
+      } else {
+        addToast('Screening clear - no matches found', 'success');
+      }
+    } catch (err) {
+      addToast(`Screening failed: ${err.message}`, 'error');
+    }
+  };
+
+  // Handle resolving a hit
+  const handleResolveHit = async (hitId, resolution) => {
+    try {
+      await resolveHitMutation.mutateAsync({
+        hitId,
+        resolution,
+        checkId: selectedCheck?.id
+      });
+      addToast(`Hit marked as ${resolution === 'confirmed_false' ? 'clear' : 'true match'}`, 'success');
+      // Refresh the selected check data
+      refetch();
+    } catch (err) {
+      addToast(`Resolution failed: ${err.message}`, 'error');
+    }
+  };
 
   return (
     <div className="screening-checks">
@@ -737,6 +834,57 @@ export default function ScreeningChecks() {
           justify-content: flex-end;
           gap: 12px;
         }
+
+        /* Loading skeleton */
+        .screening-skeleton {
+          padding: 20px;
+        }
+
+        .skeleton-row {
+          background: linear-gradient(90deg, var(--bg-tertiary) 0%, var(--bg-secondary) 50%, var(--bg-tertiary) 100%);
+          background-size: 200% 100%;
+          animation: skeleton-shimmer 1.5s infinite;
+          border-radius: 8px;
+        }
+
+        @keyframes skeleton-shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+
+        /* Spinning animation for loaders */
+        .spinning {
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        /* Button states */
+        .btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .btn-success {
+          background: var(--success);
+          color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+          opacity: 0.9;
+        }
+
+        .btn-danger {
+          background: var(--danger);
+          color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+          opacity: 0.9;
+        }
       `}</style>
       
       <div className="page-header">
@@ -760,134 +908,171 @@ export default function ScreeningChecks() {
       <div className="stats-row">
         <div className="stat-card">
           <div className="stat-label">Pending Review</div>
-          <div className="stat-value warning">1</div>
+          <div className="stat-value warning">{stats.pendingReview}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Total Hits (30d)</div>
-          <div className="stat-value">15</div>
+          <div className="stat-value">{stats.totalHits}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">True Positives</div>
-          <div className="stat-value danger">3</div>
+          <div className="stat-value danger">{stats.truePositives}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Checks Today</div>
-          <div className="stat-value success">47</div>
+          <div className="stat-value success">{stats.checksToday}</div>
         </div>
       </div>
-      
+
       <div className="filter-tabs">
-        <div 
+        <div
           className={`filter-tab ${activeFilter === 'all' ? 'active' : ''}`}
           onClick={() => setActiveFilter('all')}
         >
           All Checks
-          <span className="filter-badge">{mockChecks.length}</span>
+          <span className="filter-badge">{data?.total || 0}</span>
         </div>
-        <div 
+        <div
           className={`filter-tab ${activeFilter === 'hits' ? 'active' : ''}`}
           onClick={() => setActiveFilter('hits')}
         >
           With Hits
-          <span className="filter-badge">{mockChecks.filter(c => c.status === 'hit').length}</span>
+          <span className="filter-badge">{stats.totalHits}</span>
         </div>
-        <div 
+        <div
           className={`filter-tab ${activeFilter === 'pending' ? 'active' : ''}`}
           onClick={() => setActiveFilter('pending')}
         >
           Pending Review
-          <span className="filter-badge">{mockChecks.filter(c => c.matchStatus === 'pending_review').length}</span>
+          <span className="filter-badge">{stats.pendingReview}</span>
         </div>
       </div>
       
-      <div className="table-container">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Entity</th>
-              <th>Check Status</th>
-              <th>Hits</th>
-              <th>Match Status</th>
-              <th>Created</th>
-              <th style={{ width: 80 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredChecks.map((check) => {
-              const matchStatus = statusConfig[check.matchStatus];
-              
-              return (
-                <tr key={check.id} onClick={() => setSelectedCheck(check)}>
-                  <td>
-                    <div className="entity-cell">
-                      <div className="entity-icon">
-                        {check.entity.type === 'individual' ? <User size={18} /> : <Building2 size={18} />}
+      {isLoading ? (
+        <div className="table-container" style={{ padding: 20 }}>
+          <ScreeningSkeleton />
+        </div>
+      ) : error ? (
+        <ErrorState message={error.message} onRetry={refetch} />
+      ) : checks.length === 0 ? (
+        <div className="table-container" style={{ padding: '60px 20px', textAlign: 'center' }}>
+          <Shield size={48} style={{ color: 'var(--text-muted)', marginBottom: 16 }} />
+          <h3 style={{ marginBottom: 8 }}>No Screening Checks Found</h3>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: 20 }}>
+            {activeFilter === 'all'
+              ? 'Run your first screening check to get started.'
+              : `No checks match the "${activeFilter}" filter.`}
+          </p>
+          <button className="btn btn-primary" onClick={() => setShowNewCheck(true)}>
+            <Play size={14} />
+            Run New Check
+          </button>
+        </div>
+      ) : (
+        <div className="table-container">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Entity</th>
+                <th>Check Status</th>
+                <th>Hits</th>
+                <th>Match Status</th>
+                <th>Created</th>
+                <th style={{ width: 80 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {checks.map((check) => {
+                // Determine match status from hits
+                const hasUnresolvedHits = check.hits?.some(h => h.resolution_status === 'pending');
+                const hasConfirmedTrue = check.hits?.some(h => h.resolution_status === 'confirmed_true');
+                const matchStatusKey = hasUnresolvedHits
+                  ? 'pending_review'
+                  : hasConfirmedTrue
+                  ? 'confirmed_true'
+                  : check.status === 'hit'
+                  ? 'confirmed_clear'
+                  : 'clear';
+                const matchStatus = statusConfig[matchStatusKey];
+
+                return (
+                  <tr key={check.id} onClick={() => setSelectedCheck(check)}>
+                    <td>
+                      <div className="entity-cell">
+                        <div className="entity-icon">
+                          {check.entity_type === 'individual' ? <User size={18} /> : <Building2 size={18} />}
+                        </div>
+                        <div className="entity-info">
+                          <span className="entity-name">{check.screened_name}</span>
+                          <span className="entity-meta">
+                            {countryToFlag(check.screened_country)} {countryCodeToName[check.screened_country] || check.screened_country || 'Unknown'}
+                            <span>•</span>
+                            {check.entity_type || 'individual'}
+                          </span>
+                        </div>
                       </div>
-                      <div className="entity-info">
-                        <span className="entity-name">{check.entity.name}</span>
-                        <span className="entity-meta">
-                          {countryFlags[check.entity.countryCode]} {check.entity.country}
-                          <span>•</span>
-                          {check.entity.type}
+                    </td>
+                    <td>
+                      {check.status === 'hit' ? (
+                        <span className="status-badge warning">
+                          <AlertTriangle size={12} />
+                          Hit
                         </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    {check.status === 'hit' ? (
-                      <span className="status-badge warning">
-                        <AlertTriangle size={12} />
-                        Hit
-                      </span>
-                    ) : (
-                      <span className="status-badge success">
-                        <CheckCircle2 size={12} />
-                        Clear
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    <div className={`hit-count ${check.hitCount > 0 ? 'has-hits' : 'clear'}`}>
-                      {check.hitCount > 0 ? (
-                        <>
-                          <AlertTriangle size={14} />
-                          {check.hitCount} {check.hitCount === 1 ? 'hit' : 'hits'}
-                        </>
+                      ) : check.status === 'error' ? (
+                        <span className="status-badge danger">
+                          <XCircle size={12} />
+                          Error
+                        </span>
                       ) : (
-                        <>
-                          <CheckCircle2 size={14} />
-                          No hits
-                        </>
+                        <span className="status-badge success">
+                          <CheckCircle2 size={12} />
+                          Clear
+                        </span>
                       )}
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`status-badge ${matchStatus?.color}`}>
-                      {matchStatus?.label}
-                    </span>
-                  </td>
-                  <td style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-                    {formatDateTime(check.createdAt)}
-                  </td>
-                  <td>
-                    <button style={{
-                      width: 32,
-                      height: 32,
-                      border: 'none',
-                      background: 'transparent',
-                      color: 'var(--text-muted)',
-                      cursor: 'pointer',
-                      borderRadius: 6
-                    }}>
-                      <Eye size={16} />
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                    </td>
+                    <td>
+                      <div className={`hit-count ${check.hit_count > 0 ? 'has-hits' : 'clear'}`}>
+                        {check.hit_count > 0 ? (
+                          <>
+                            <AlertTriangle size={14} />
+                            {check.hit_count} {check.hit_count === 1 ? 'hit' : 'hits'}
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 size={14} />
+                            No hits
+                          </>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`status-badge ${matchStatus?.color}`}>
+                        {matchStatus?.label}
+                      </span>
+                    </td>
+                    <td style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
+                      {formatDateTime(check.started_at || check.created_at)}
+                    </td>
+                    <td>
+                      <button style={{
+                        width: 32,
+                        height: 32,
+                        border: 'none',
+                        background: 'transparent',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        borderRadius: 6
+                      }}>
+                        <Eye size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
       
       <div className="list-sources-card">
         <div className="list-sources-header">
@@ -900,13 +1085,19 @@ export default function ScreeningChecks() {
             Sync All
           </button>
         </div>
-        {mockListSources.map((source) => (
-          <div key={source.id} className="list-source-row">
-            <span className="list-source-name">{source.name}</span>
-            <span className="list-source-version">{source.version}</span>
-            <span className="list-source-count">{source.entityCount.toLocaleString()} entities</span>
+        {listSources.length > 0 ? (
+          listSources.map((source) => (
+            <div key={source.id} className="list-source-row">
+              <span className="list-source-name">{source.name}</span>
+              <span className="list-source-version">{source.version}</span>
+              <span className="list-source-count">{(source.entity_count || source.entityCount || 0).toLocaleString()} entities</span>
+            </div>
+          ))
+        ) : (
+          <div className="list-source-row" style={{ color: 'var(--text-muted)', justifyContent: 'center' }}>
+            Loading list sources...
           </div>
-        ))}
+        )}
       </div>
       
       {/* Detail Panel */}
@@ -923,85 +1114,100 @@ export default function ScreeningChecks() {
                 <div className="panel-section-title">Entity</div>
                 <div className="entity-cell" style={{ marginBottom: 16 }}>
                   <div className="entity-icon">
-                    {selectedCheck.entity.type === 'individual' ? <User size={18} /> : <Building2 size={18} />}
+                    {selectedCheck.entity_type === 'individual' ? <User size={18} /> : <Building2 size={18} />}
                   </div>
                   <div className="entity-info">
-                    <span className="entity-name">{selectedCheck.entity.name}</span>
+                    <span className="entity-name">{selectedCheck.screened_name}</span>
                     <span className="entity-meta">
-                      {countryFlags[selectedCheck.entity.countryCode]} {selectedCheck.entity.country}
+                      {countryToFlag(selectedCheck.screened_country)} {countryCodeToName[selectedCheck.screened_country] || selectedCheck.screened_country || 'Unknown'}
                     </span>
                   </div>
                 </div>
+                {selectedCheck.screened_dob && (
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 8 }}>
+                    <Calendar size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                    DOB: {selectedCheck.screened_dob}
+                  </div>
+                )}
               </div>
-              
-              {selectedCheck.hits.length > 0 && (
+
+              {selectedCheck.hits?.length > 0 && (
                 <div className="panel-section">
                   <div className="panel-section-title">Screening Hits ({selectedCheck.hits.length})</div>
-                  {selectedCheck.hits.map((hit, idx) => (
-                    <div key={idx} className="hit-card">
-                      <div className="hit-header">
-                        <span className="hit-source">{hit.source}</span>
-                        <div className="hit-confidence">
-                          <div className="confidence-bar">
-                            <div 
-                              className={`confidence-fill ${hit.confidence > 80 ? 'high' : hit.confidence > 60 ? 'medium' : 'low'}`}
-                              style={{ width: `${hit.confidence}%` }}
+                  {selectedCheck.hits.map((hit) => {
+                    const confidencePercent = Math.round((hit.confidence || 0) * 100);
+                    const isResolved = hit.resolution_status !== 'pending';
+
+                    return (
+                      <div key={hit.id} className="hit-card">
+                        <div className="hit-header">
+                          <span className="hit-source">{hit.list_source || hit.hit_type}</span>
+                          <div className="hit-confidence">
+                            <div className="confidence-bar">
+                              <div
+                                className={`confidence-fill ${confidencePercent > 80 ? 'high' : confidencePercent > 60 ? 'medium' : 'low'}`}
+                                style={{ width: `${confidencePercent}%` }}
+                              />
+                            </div>
+                            <span>{confidencePercent}%</span>
+                          </div>
+                        </div>
+                        <div className="hit-detail">
+                          <strong>{hit.matched_name}</strong>
+                          {hit.pep_position && ` - ${hit.pep_position}`}
+                          {hit.pep_tier && ` (Tier ${hit.pep_tier})`}
+                        </div>
+                        <div className="hit-meta">List version: {hit.list_version_id}</div>
+                        <div className="matched-fields">
+                          {(hit.matched_fields || []).map((field, i) => (
+                            <span key={i} className="matched-field">{field}</span>
+                          ))}
+                        </div>
+                        {isResolved && (
+                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
+                            <span className={`status-badge ${hit.resolution_status === 'confirmed_false' ? 'success' : 'danger'}`}>
+                              {hit.resolution_status === 'confirmed_false' ? 'Cleared' : 'Confirmed Match'}
+                            </span>
+                            {hit.resolution_notes && (
+                              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>
+                                {hit.resolution_notes}
+                              </div>
+                            )}
+                            {hit.resolved_at && (
+                              <div className="hit-meta" style={{ marginTop: 4 }}>
+                                Resolved: {formatDateTime(hit.resolved_at)}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {!isResolved && (
+                          <div style={{ marginTop: 12 }}>
+                            <HitAISuggestion
+                              hitId={hit.id}
+                              onResolve={(resolution) => handleResolveHit(hit.id, resolution)}
+                              isResolving={resolveHitMutation.isPending}
                             />
                           </div>
-                          <span>{hit.confidence}%</span>
-                        </div>
+                        )}
                       </div>
-                      <div className="hit-detail">{hit.details}</div>
-                      <div className="hit-meta">List version: {hit.listVersion}</div>
-                      <div className="matched-fields">
-                        {hit.matchedFields.map((field, i) => (
-                          <span key={i} className="matched-field">{field}</span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
-              
-              {selectedCheck.matchStatus === 'pending_review' && (
+
+              {selectedCheck.hits?.length === 0 && selectedCheck.status === 'clear' && (
                 <div className="panel-section">
-                  <div className="ai-review-section">
-                    <div className="ai-review-header">
-                      <Sparkles size={16} />
-                      AI Review Recommendation
-                    </div>
-                    <div className="ai-review-text">
-                      Based on the match confidence (85%) and matched fields, this appears to be a potential <strong>true positive</strong>. 
-                      The name "Maria Garcia" has a high overlap with the OFAC entry. Recommend requesting additional documentation 
-                      (proof of identity, source of funds) before making a final determination.
-                    </div>
-                    <div className="ai-actions">
-                      <button className="btn btn-success" style={{ flex: 1 }}>
-                        <CheckCircle2 size={14} />
-                        Mark as Clear
-                      </button>
-                      <button className="btn btn-danger" style={{ flex: 1 }}>
-                        <AlertTriangle size={14} />
-                        Confirm Match
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {selectedCheck.resolution && (
-                <div className="panel-section">
-                  <div className="panel-section-title">Resolution</div>
-                  <div className="hit-card">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <span className={`status-badge ${selectedCheck.resolution.status === 'cleared' ? 'success' : 'danger'}`}>
-                        {selectedCheck.resolution.status === 'cleared' ? 'Cleared' : 'Confirmed'}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 14, marginBottom: 8 }}>{selectedCheck.resolution.reason}</div>
-                    <div className="hit-meta">
-                      {selectedCheck.resolution.reviewer} • {formatDateTime(selectedCheck.resolution.resolvedAt)}
-                    </div>
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '40px 20px',
+                    background: 'var(--bg-tertiary)',
+                    borderRadius: 8
+                  }}>
+                    <CheckCircle2 size={48} style={{ color: 'var(--success)', marginBottom: 12 }} />
+                    <h4 style={{ marginBottom: 8 }}>No Matches Found</h4>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
+                      This entity was screened against all connected list sources with no matches.
+                    </p>
                   </div>
                 </div>
               )}
@@ -1013,51 +1219,180 @@ export default function ScreeningChecks() {
       {/* New Check Modal */}
       <div className="modal-overlay" onClick={() => setShowNewCheck(false)} />
       <div className="new-check-modal">
-        <div className="modal-header">
-          <div className="modal-title">Run New Screening Check</div>
-        </div>
-        <div className="modal-content">
-          <div className="form-group">
-            <label className="form-label">Entity Type</label>
-            <select className="form-input" style={{ cursor: 'pointer' }}>
-              <option>Individual</option>
-              <option>Company</option>
-            </select>
+        <form onSubmit={handleRunCheck}>
+          <div className="modal-header">
+            <div className="modal-title">Run New Screening Check</div>
           </div>
-          <div className="form-group">
-            <label className="form-label">Full Name</label>
-            <input 
-              type="text" 
-              className="form-input" 
-              placeholder="Enter full name..."
-              value={searchName}
-              onChange={(e) => setSearchName(e.target.value)}
-            />
+          <div className="modal-content">
+            <div className="form-group">
+              <label className="form-label">Entity Type</label>
+              <select
+                className="form-input"
+                style={{ cursor: 'pointer' }}
+                value={formData.entity_type}
+                onChange={(e) => setFormData(prev => ({ ...prev, entity_type: e.target.value }))}
+              >
+                <option value="individual">Individual</option>
+                <option value="company">Company</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Full Name *</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Enter full name..."
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Country</label>
+              <select
+                className="form-input"
+                style={{ cursor: 'pointer' }}
+                value={formData.country}
+                onChange={(e) => setFormData(prev => ({ ...prev, country: e.target.value }))}
+              >
+                <option value="">Select country...</option>
+                <optgroup label="High-Risk Jurisdictions">
+                  <option value="RU">Russia</option>
+                  <option value="CN">China</option>
+                  <option value="IR">Iran</option>
+                  <option value="KP">North Korea</option>
+                  <option value="SY">Syria</option>
+                  <option value="CU">Cuba</option>
+                  <option value="VE">Venezuela</option>
+                  <option value="MM">Myanmar</option>
+                  <option value="BY">Belarus</option>
+                </optgroup>
+                <optgroup label="Common Countries">
+                  <option value="US">United States</option>
+                  <option value="GB">United Kingdom</option>
+                  <option value="CA">Canada</option>
+                  <option value="AU">Australia</option>
+                  <option value="DE">Germany</option>
+                  <option value="FR">France</option>
+                  <option value="JP">Japan</option>
+                  <option value="KR">South Korea</option>
+                  <option value="IN">India</option>
+                  <option value="BR">Brazil</option>
+                  <option value="MX">Mexico</option>
+                  <option value="ZA">South Africa</option>
+                  <option value="AE">United Arab Emirates</option>
+                  <option value="SA">Saudi Arabia</option>
+                  <option value="SG">Singapore</option>
+                  <option value="HK">Hong Kong</option>
+                  <option value="IL">Israel</option>
+                  <option value="NL">Netherlands</option>
+                  <option value="CH">Switzerland</option>
+                  <option value="IE">Ireland</option>
+                </optgroup>
+                <optgroup label="Europe">
+                  <option value="AT">Austria</option>
+                  <option value="BE">Belgium</option>
+                  <option value="BG">Bulgaria</option>
+                  <option value="HR">Croatia</option>
+                  <option value="CY">Cyprus</option>
+                  <option value="CZ">Czech Republic</option>
+                  <option value="DK">Denmark</option>
+                  <option value="EE">Estonia</option>
+                  <option value="FI">Finland</option>
+                  <option value="GR">Greece</option>
+                  <option value="HU">Hungary</option>
+                  <option value="IT">Italy</option>
+                  <option value="LV">Latvia</option>
+                  <option value="LT">Lithuania</option>
+                  <option value="LU">Luxembourg</option>
+                  <option value="MT">Malta</option>
+                  <option value="NO">Norway</option>
+                  <option value="PL">Poland</option>
+                  <option value="PT">Portugal</option>
+                  <option value="RO">Romania</option>
+                  <option value="SK">Slovakia</option>
+                  <option value="SI">Slovenia</option>
+                  <option value="ES">Spain</option>
+                  <option value="SE">Sweden</option>
+                  <option value="UA">Ukraine</option>
+                </optgroup>
+                <optgroup label="Americas">
+                  <option value="AR">Argentina</option>
+                  <option value="CL">Chile</option>
+                  <option value="CO">Colombia</option>
+                  <option value="CR">Costa Rica</option>
+                  <option value="DO">Dominican Republic</option>
+                  <option value="EC">Ecuador</option>
+                  <option value="GT">Guatemala</option>
+                  <option value="PA">Panama</option>
+                  <option value="PE">Peru</option>
+                  <option value="PR">Puerto Rico</option>
+                  <option value="UY">Uruguay</option>
+                </optgroup>
+                <optgroup label="Asia Pacific">
+                  <option value="BD">Bangladesh</option>
+                  <option value="ID">Indonesia</option>
+                  <option value="MY">Malaysia</option>
+                  <option value="NZ">New Zealand</option>
+                  <option value="PK">Pakistan</option>
+                  <option value="PH">Philippines</option>
+                  <option value="TW">Taiwan</option>
+                  <option value="TH">Thailand</option>
+                  <option value="VN">Vietnam</option>
+                </optgroup>
+                <optgroup label="Middle East & Africa">
+                  <option value="EG">Egypt</option>
+                  <option value="JO">Jordan</option>
+                  <option value="KW">Kuwait</option>
+                  <option value="LB">Lebanon</option>
+                  <option value="NG">Nigeria</option>
+                  <option value="OM">Oman</option>
+                  <option value="QA">Qatar</option>
+                  <option value="TR">Turkey</option>
+                </optgroup>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Date of Birth (optional)</label>
+              <input
+                type="date"
+                className="form-input"
+                value={formData.date_of_birth}
+                onChange={(e) => setFormData(prev => ({ ...prev, date_of_birth: e.target.value }))}
+              />
+            </div>
           </div>
-          <div className="form-group">
-            <label className="form-label">Country</label>
-            <select className="form-input" style={{ cursor: 'pointer' }}>
-              <option>Select country...</option>
-              <option>United States</option>
-              <option>United Kingdom</option>
-              <option>Mexico</option>
-              <option>South Africa</option>
-            </select>
+          <div className="modal-footer">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                setShowNewCheck(false);
+                setFormData({ entity_type: 'individual', name: '', country: '', date_of_birth: '' });
+              }}
+              disabled={runScreeningMutation.isPending}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={runScreeningMutation.isPending}
+            >
+              {runScreeningMutation.isPending ? (
+                <>
+                  <Loader2 size={14} className="spinning" />
+                  Running...
+                </>
+              ) : (
+                <>
+                  <Play size={14} />
+                  Run Check
+                </>
+              )}
+            </button>
           </div>
-          <div className="form-group">
-            <label className="form-label">Date of Birth (optional)</label>
-            <input type="date" className="form-input" />
-          </div>
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={() => setShowNewCheck(false)}>
-            Cancel
-          </button>
-          <button className="btn btn-primary">
-            <Play size={14} />
-            Run Check
-          </button>
-        </div>
+        </form>
       </div>
     </div>
   );
