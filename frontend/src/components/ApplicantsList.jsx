@@ -185,6 +185,15 @@ export default function ApplicantsList() {
   useKeyboardShortcut(['ctrl', 'k'], () => searchInputRef.current?.focus());
   useKeyboardShortcut('Escape', closeDropdowns, { enabled: !!activeDropdown });
 
+  // Update filter helper (defined before handleDropdownKeyDown to avoid hoisting issues)
+  const updateFilter = useCallback((key, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value,
+      offset: 0,
+    }));
+  }, []);
+
   // Get options for current dropdown
   const getDropdownOptions = useCallback(() => {
     if (activeDropdown === 'status') {
@@ -254,14 +263,6 @@ export default function ApplicantsList() {
   const total = data?.total || 0;
   const currentPage = Math.floor(filters.offset / filters.limit) + 1;
   const totalPages = Math.ceil(total / filters.limit) || 1;
-
-  const updateFilter = (key, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [key]: value,
-      offset: 0,
-    }));
-  };
 
   const handlePageChange = (newPage) => {
     setFilters(prev => ({
