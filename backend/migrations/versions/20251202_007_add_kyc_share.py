@@ -10,6 +10,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
 revision: str = '010'
@@ -18,77 +19,117 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def table_exists(table_name):
+    """Check if a table exists in the database."""
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    return table_name in inspector.get_table_names()
+
+
+def index_exists(table_name, index_name):
+    """Check if an index exists on a table."""
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if not table_exists(table_name):
+        return False
+    indexes = [idx['name'] for idx in inspector.get_indexes(table_name)]
+    return index_name in indexes
+
+
 def upgrade() -> None:
     # Create kyc_share_tokens table
-    op.create_table(
-        'kyc_share_tokens',
-        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+    if not table_exists('kyc_share_tokens'):
+        op.create_table(
+            'kyc_share_tokens',
+            sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+            sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+            sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
 
-        # Tenant and Applicant
-        sa.Column('tenant_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('applicant_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('applicants.id', ondelete='CASCADE'), nullable=False),
+            # Tenant and Applicant
+            sa.Column('tenant_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False),
+            sa.Column('applicant_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('applicants.id', ondelete='CASCADE'), nullable=False),
 
-        # Token identification
-        sa.Column('token_hash', sa.String(64), nullable=False, unique=True),
-        sa.Column('token_prefix', sa.String(8), nullable=False),
+            # Token identification
+            sa.Column('token_hash', sa.String(64), nullable=False, unique=True),
+            sa.Column('token_prefix', sa.String(8), nullable=False),
 
-        # Recipient information
-        sa.Column('shared_with', sa.String(255), nullable=False),
-        sa.Column('shared_with_email', sa.String(255), nullable=True),
-        sa.Column('purpose', sa.Text, nullable=True),
+            # Recipient information
+            sa.Column('shared_with', sa.String(255), nullable=False),
+            sa.Column('shared_with_email', sa.String(255), nullable=True),
+            sa.Column('purpose', sa.Text, nullable=True),
 
-        # Permissions
-        sa.Column('permissions', postgresql.JSONB, nullable=False, server_default='{}'),
+            # Permissions
+            sa.Column('permissions', postgresql.JSONB, nullable=False, server_default='{}'),
 
-        # Limits
-        sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('max_uses', sa.Integer, default=1, nullable=False),
-        sa.Column('use_count', sa.Integer, default=0, nullable=False),
+            # Limits
+            sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+            sa.Column('max_uses', sa.Integer, default=1, nullable=False),
+            sa.Column('use_count', sa.Integer, default=0, nullable=False),
 
-        # Status
-        sa.Column('revoked_at', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('revoked_reason', sa.String(255), nullable=True),
+            # Status
+            sa.Column('revoked_at', sa.DateTime(timezone=True), nullable=True),
+            sa.Column('revoked_reason', sa.String(255), nullable=True),
 
-        # Consent
-        sa.Column('consent_given_at', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('consent_ip_address', sa.String(45), nullable=True),
-    )
+            # Consent
+            sa.Column('consent_given_at', sa.DateTime(timezone=True), nullable=False),
+            sa.Column('consent_ip_address', sa.String(45), nullable=True),
+        )
 
     # Create indexes for kyc_share_tokens
-    op.create_index('idx_share_tokens_tenant', 'kyc_share_tokens', ['tenant_id'])
-    op.create_index('idx_share_tokens_applicant', 'kyc_share_tokens', ['applicant_id'])
-    op.create_index('idx_share_tokens_hash', 'kyc_share_tokens', ['token_hash'], unique=True)
-    op.create_index('idx_share_tokens_prefix', 'kyc_share_tokens', ['token_prefix'])
+    if not index_exists('kyc_share_tokens', 'idx_share_tokens_tenant'):
+        op.create_index('idx_share_tokens_tenant', 'kyc_share_tokens', ['tenant_id'])
+    if not index_exists('kyc_share_tokens', 'idx_share_tokens_applicant'):
+        op.create_index('idx_share_tokens_applicant', 'kyc_share_tokens', ['applicant_id'])
+    if not index_exists('kyc_share_tokens', 'idx_share_tokens_hash'):
+        op.create_index('idx_share_tokens_hash', 'kyc_share_tokens', ['token_hash'], unique=True)
+    if not index_exists('kyc_share_tokens', 'idx_share_tokens_prefix'):
+        op.create_index('idx_share_tokens_prefix', 'kyc_share_tokens', ['token_prefix'])
 
     # Create kyc_share_access_logs table
-    op.create_table(
-        'kyc_share_access_logs',
-        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+    if not table_exists('kyc_share_access_logs'):
+        op.create_table(
+            'kyc_share_access_logs',
+            sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
 
-        # Token reference
-        sa.Column('token_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('kyc_share_tokens.id', ondelete='CASCADE'), nullable=False),
+            # Token reference
+            sa.Column('token_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('kyc_share_tokens.id', ondelete='CASCADE'), nullable=False),
 
-        # Requester information
-        sa.Column('requester_ip', sa.String(45), nullable=True),
-        sa.Column('requester_domain', sa.String(255), nullable=True),
-        sa.Column('requester_user_agent', sa.Text, nullable=True),
+            # Requester information
+            sa.Column('requester_ip', sa.String(45), nullable=True),
+            sa.Column('requester_domain', sa.String(255), nullable=True),
+            sa.Column('requester_user_agent', sa.Text, nullable=True),
 
-        # Access details
-        sa.Column('accessed_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column('success', sa.Boolean, default=True, nullable=False),
-        sa.Column('failure_reason', sa.String(255), nullable=True),
+            # Access details
+            sa.Column('accessed_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+            sa.Column('success', sa.Boolean, default=True, nullable=False),
+            sa.Column('failure_reason', sa.String(255), nullable=True),
 
-        # What data was accessed
-        sa.Column('accessed_permissions', postgresql.JSONB, nullable=False, server_default='[]'),
-    )
+            # What data was accessed
+            sa.Column('accessed_permissions', postgresql.JSONB, nullable=False, server_default='[]'),
+        )
 
     # Create indexes for kyc_share_access_logs
-    op.create_index('idx_share_access_token', 'kyc_share_access_logs', ['token_id'])
-    op.create_index('idx_share_access_date', 'kyc_share_access_logs', ['accessed_at'])
+    if not index_exists('kyc_share_access_logs', 'idx_share_access_token'):
+        op.create_index('idx_share_access_token', 'kyc_share_access_logs', ['token_id'])
+    if not index_exists('kyc_share_access_logs', 'idx_share_access_date'):
+        op.create_index('idx_share_access_date', 'kyc_share_access_logs', ['accessed_at'])
 
 
 def downgrade() -> None:
-    op.drop_table('kyc_share_access_logs')
-    op.drop_table('kyc_share_tokens')
+    if table_exists('kyc_share_access_logs'):
+        if index_exists('kyc_share_access_logs', 'idx_share_access_date'):
+            op.drop_index('idx_share_access_date', table_name='kyc_share_access_logs')
+        if index_exists('kyc_share_access_logs', 'idx_share_access_token'):
+            op.drop_index('idx_share_access_token', table_name='kyc_share_access_logs')
+        op.drop_table('kyc_share_access_logs')
+
+    if table_exists('kyc_share_tokens'):
+        if index_exists('kyc_share_tokens', 'idx_share_tokens_prefix'):
+            op.drop_index('idx_share_tokens_prefix', table_name='kyc_share_tokens')
+        if index_exists('kyc_share_tokens', 'idx_share_tokens_hash'):
+            op.drop_index('idx_share_tokens_hash', table_name='kyc_share_tokens')
+        if index_exists('kyc_share_tokens', 'idx_share_tokens_applicant'):
+            op.drop_index('idx_share_tokens_applicant', table_name='kyc_share_tokens')
+        if index_exists('kyc_share_tokens', 'idx_share_tokens_tenant'):
+            op.drop_index('idx_share_tokens_tenant', table_name='kyc_share_tokens')
+        op.drop_table('kyc_share_tokens')
