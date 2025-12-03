@@ -109,9 +109,9 @@ async def generate_share_token(
 @router.get("/tokens/{applicant_id}", response_model=ShareTokenListResponse)
 async def list_share_tokens(
     applicant_id: UUID,
-    include_expired: bool = False,
     db: TenantDB,
     user: AuthenticatedUser,
+    include_expired: bool = False,
 ):
     """
     List all share tokens for an applicant.
@@ -155,9 +155,9 @@ async def list_share_tokens(
 @router.post("/revoke/{token_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_share_token(
     token_id: UUID,
-    data: Optional[ShareTokenRevoke] = None,
     db: TenantDB,
     user: AuthenticatedUser,
+    data: Optional[ShareTokenRevoke] = None,
 ):
     """
     Revoke a share token immediately.
@@ -277,9 +277,9 @@ async def verify_share_token(
 @router.get("/history/{applicant_id}", response_model=AccessHistoryResponse)
 async def get_access_history(
     applicant_id: UUID,
-    limit: int = 50,
     db: TenantDB,
     user: AuthenticatedUser,
+    limit: int = 50,
 ):
     """
     Get access history for an applicant's shared tokens.
