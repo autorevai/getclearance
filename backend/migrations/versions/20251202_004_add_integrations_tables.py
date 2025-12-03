@@ -25,6 +25,15 @@ def table_exists(table_name):
     return table_name in inspector.get_table_names()
 
 
+def column_exists(table_name, column_name):
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if not table_exists(table_name):
+        return False
+    columns = [c['name'] for c in inspector.get_columns(table_name)]
+    return column_name in columns
+
+
 def index_exists(table_name, index_name):
     bind = op.get_bind()
     inspector = inspect(bind)
@@ -88,8 +97,30 @@ def upgrade() -> None:
     if not index_exists('webhook_configs', 'idx_webhook_configs_active'):
         op.create_index('idx_webhook_configs_active', 'webhook_configs', ['tenant_id', 'active'])
 
-    # Create webhook_deliveries table
-    if not table_exists('webhook_deliveries'):
+    # Handle webhook_deliveries table
+    # If table exists but is malformed (missing webhook_id), drop and recreate it
+    if table_exists('webhook_deliveries'):
+        if not column_exists('webhook_deliveries', 'webhook_id'):
+            # Table exists but is malformed - drop and recreate
+            op.drop_table('webhook_deliveries')
+            op.create_table(
+                'webhook_deliveries',
+                sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
+                sa.Column('webhook_id', postgresql.UUID(as_uuid=True), nullable=False),
+                sa.Column('event_type', sa.String(100), nullable=False),
+                sa.Column('payload', postgresql.JSONB(), nullable=False),
+                sa.Column('response_code', sa.Integer(), nullable=True),
+                sa.Column('response_body', sa.Text(), nullable=True),
+                sa.Column('response_time_ms', sa.Integer(), nullable=True),
+                sa.Column('success', sa.Boolean(), nullable=False, default=False),
+                sa.Column('error_message', sa.Text(), nullable=True),
+                sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+                sa.Column('delivered_at', sa.DateTime(timezone=True), nullable=True),
+                sa.PrimaryKeyConstraint('id'),
+                sa.ForeignKeyConstraint(['webhook_id'], ['webhook_configs.id'], ondelete='CASCADE'),
+            )
+    else:
+        # Table doesn't exist, create it
         op.create_table(
             'webhook_deliveries',
             sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
@@ -106,10 +137,14 @@ def upgrade() -> None:
             sa.PrimaryKeyConstraint('id'),
             sa.ForeignKeyConstraint(['webhook_id'], ['webhook_configs.id'], ondelete='CASCADE'),
         )
-    if not index_exists('webhook_deliveries', 'idx_webhook_deliveries_webhook'):
-        op.create_index('idx_webhook_deliveries_webhook', 'webhook_deliveries', ['webhook_id'])
-    if not index_exists('webhook_deliveries', 'idx_webhook_deliveries_created'):
-        op.create_index('idx_webhook_deliveries_created', 'webhook_deliveries', ['created_at'])
+
+    # Create indexes for webhook_deliveries (only if column exists)
+    if column_exists('webhook_deliveries', 'webhook_id'):
+        if not index_exists('webhook_deliveries', 'idx_webhook_deliveries_webhook'):
+            op.create_index('idx_webhook_deliveries_webhook', 'webhook_deliveries', ['webhook_id'])
+    if column_exists('webhook_deliveries', 'created_at'):
+        if not index_exists('webhook_deliveries', 'idx_webhook_deliveries_created'):
+            op.create_index('idx_webhook_deliveries_created', 'webhook_deliveries', ['created_at'])
 
 
 def downgrade() -> None:
