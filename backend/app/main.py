@@ -35,6 +35,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
 from app.api.router import api_router
+from app.api.websocket import websocket_endpoint
 from app.database import create_db_pool, close_db_pool, get_db
 from app.logging_config import (
     setup_logging,
@@ -538,6 +539,9 @@ def create_application() -> FastAPI:
 
     # API v1 routes
     app.include_router(api_router, prefix=settings.api_v1_prefix)
+
+    # WebSocket endpoint for real-time updates
+    app.add_api_websocket_route("/ws", websocket_endpoint)
 
     return app
 

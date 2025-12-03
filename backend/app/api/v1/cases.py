@@ -124,6 +124,45 @@ async def generate_case_number(db: AsyncSession, tenant_id: UUID) -> str:
 
 
 # ===========================================
+# GET CASE COUNTS
+# ===========================================
+class CaseCountsResponse(BaseModel):
+    """Case counts by status."""
+    open: int
+    in_progress: int
+    resolved: int
+    total: int
+
+
+@router.get("/counts", response_model=CaseCountsResponse)
+async def get_case_counts(
+    db: TenantDB,
+    user: AuthenticatedUser,
+):
+    """
+    Get case counts by status.
+
+    Returns counts for open, in_progress, resolved, and total cases.
+    This is more efficient than listing cases when only counts are needed.
+    """
+    counts = {}
+    for status_value in ['open', 'in_progress', 'resolved']:
+        query = select(func.count(Case.id)).where(
+            Case.tenant_id == user.tenant_id,
+            Case.status == status_value,
+        )
+        result = await db.execute(query)
+        counts[status_value] = result.scalar() or 0
+
+    return CaseCountsResponse(
+        open=counts['open'],
+        in_progress=counts['in_progress'],
+        resolved=counts['resolved'],
+        total=counts['open'] + counts['in_progress'] + counts['resolved'],
+    )
+
+
+# ===========================================
 # LIST CASES
 # ===========================================
 @router.get("", response_model=CaseListResponse)

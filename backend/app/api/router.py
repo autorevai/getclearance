@@ -17,7 +17,7 @@ Router structure:
 
 from fastapi import APIRouter
 
-from app.api.v1 import applicants, companies, documents, screening, cases, ai, auth, dashboard, monitoring, settings, workflows, audit, questionnaires, addresses, analytics, biometrics, integrations, device_intel, billing, kyc_share
+from app.api.v1 import applicants, companies, documents, screening, cases, ai, auth, dashboard, monitoring, settings, workflows, audit, questionnaires, addresses, analytics, biometrics, integrations, device_intel, billing, kyc_share, sdk
 
 # Main API router
 api_router = APIRouter()
@@ -140,6 +140,12 @@ api_router.include_router(
 api_router.include_router(
     kyc_share.router,
     tags=["KYC Share"],
+)
+
+api_router.include_router(
+    sdk.router,
+    prefix="/sdk",
+    tags=["SDK"],
 )
 
 # TODO: Add remaining routers as they're built

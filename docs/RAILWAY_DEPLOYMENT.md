@@ -542,6 +542,64 @@ Base Schema (from initial setup)
 
 ---
 
+## WebSocket Support
+
+### Overview
+
+The backend supports WebSocket connections for real-time updates. The frontend automatically connects when authenticated.
+
+### Endpoint
+
+```
+wss://getclearance-production.up.railway.app/ws?token=<jwt_token>
+```
+
+### Authentication
+
+WebSocket connections use JWT token authentication via query parameter. The token is verified against Auth0 JWKS.
+
+### Event Types
+
+Events broadcast to connected clients:
+
+| Event | Description |
+|-------|-------------|
+| `connected` | Connection established |
+| `ping` | Heartbeat (client should respond with pong) |
+| `applicant.created` | New applicant added |
+| `applicant.updated` | Applicant data changed |
+| `applicant.reviewed` | Applicant review completed |
+| `screening.completed` | Screening check finished |
+| `document.processed` | Document OCR/processing done |
+| `case.created` | New case opened |
+| `case.resolved` | Case resolved |
+
+### Railway Configuration
+
+Railway supports WebSocket connections out of the box. No additional configuration needed.
+
+### Frontend Integration
+
+The `useRealtimeUpdates` hook handles:
+- Connection with JWT token
+- Automatic reconnection with exponential backoff
+- Query cache invalidation on events
+- Toast notifications for relevant events
+
+### Troubleshooting
+
+**WebSocket fails to connect:**
+1. Check JWT token is valid and not expired
+2. Verify `tenant_id` claim exists in token
+3. Check Railway logs for connection errors
+
+**Connection drops frequently:**
+1. Railway may timeout idle connections after ~55 seconds
+2. The ping/pong mechanism keeps connections alive
+3. Frontend has automatic reconnection (up to 5 attempts)
+
+---
+
 ## Cost Estimate
 
 Railway Hobby plan (~$5/month) includes:

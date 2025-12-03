@@ -260,20 +260,7 @@ export function useCaseCounts() {
 
   return useQuery({
     queryKey: [...caseKeys.all, 'counts'],
-    queryFn: async ({ signal }) => {
-      const [open, inProgress, resolved] = await Promise.all([
-        service.list({ status: 'open', limit: 0 }, { signal }),
-        service.list({ status: 'in_progress', limit: 0 }, { signal }),
-        service.list({ status: 'resolved', limit: 0 }, { signal }),
-      ]);
-
-      return {
-        open: open.total,
-        in_progress: inProgress.total,
-        resolved: resolved.total,
-        total: open.total + inProgress.total + resolved.total,
-      };
-    },
+    queryFn: ({ signal }) => service.getCounts({ signal }),
     staleTime: 60000,
   });
 }

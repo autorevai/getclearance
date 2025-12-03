@@ -47,6 +47,14 @@ export class CasesService {
     const query = buildQueryString({ ...params, assigned_to: 'me' });
     return this.client.get(`/cases${query}`, options);
   }
+
+  /**
+   * Get case counts by status.
+   * Returns: { open, in_progress, resolved, total }
+   */
+  getCounts(options = {}) {
+    return this.client.get('/cases/counts', options);
+  }
 }
 
 export default CasesService;
