@@ -26,6 +26,16 @@ def table_exists(table_name):
     return table_name in inspector.get_table_names()
 
 
+def column_exists(table_name, column_name):
+    """Check if a column exists in a table."""
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if not table_exists(table_name):
+        return False
+    columns = [c['name'] for c in inspector.get_columns(table_name)]
+    return column_name in columns
+
+
 def index_exists(table_name, index_name):
     """Check if an index exists on a table."""
     bind = op.get_bind()
@@ -75,44 +85,58 @@ def upgrade() -> None:
             sa.Column('consent_ip_address', sa.String(45), nullable=True),
         )
 
-    # Create indexes for kyc_share_tokens
-    if not index_exists('kyc_share_tokens', 'idx_share_tokens_tenant'):
-        op.create_index('idx_share_tokens_tenant', 'kyc_share_tokens', ['tenant_id'])
-    if not index_exists('kyc_share_tokens', 'idx_share_tokens_applicant'):
-        op.create_index('idx_share_tokens_applicant', 'kyc_share_tokens', ['applicant_id'])
-    if not index_exists('kyc_share_tokens', 'idx_share_tokens_hash'):
-        op.create_index('idx_share_tokens_hash', 'kyc_share_tokens', ['token_hash'], unique=True)
-    if not index_exists('kyc_share_tokens', 'idx_share_tokens_prefix'):
-        op.create_index('idx_share_tokens_prefix', 'kyc_share_tokens', ['token_prefix'])
+    # Create indexes for kyc_share_tokens (only if columns exist)
+    if column_exists('kyc_share_tokens', 'tenant_id'):
+        if not index_exists('kyc_share_tokens', 'idx_share_tokens_tenant'):
+            op.create_index('idx_share_tokens_tenant', 'kyc_share_tokens', ['tenant_id'])
+    if column_exists('kyc_share_tokens', 'applicant_id'):
+        if not index_exists('kyc_share_tokens', 'idx_share_tokens_applicant'):
+            op.create_index('idx_share_tokens_applicant', 'kyc_share_tokens', ['applicant_id'])
+    if column_exists('kyc_share_tokens', 'token_hash'):
+        if not index_exists('kyc_share_tokens', 'idx_share_tokens_hash'):
+            op.create_index('idx_share_tokens_hash', 'kyc_share_tokens', ['token_hash'], unique=True)
+    if column_exists('kyc_share_tokens', 'token_prefix'):
+        if not index_exists('kyc_share_tokens', 'idx_share_tokens_prefix'):
+            op.create_index('idx_share_tokens_prefix', 'kyc_share_tokens', ['token_prefix'])
 
-    # Create kyc_share_access_logs table
-    if not table_exists('kyc_share_access_logs'):
+    # Handle kyc_share_access_logs table
+    if table_exists('kyc_share_access_logs'):
+        if not column_exists('kyc_share_access_logs', 'token_id'):
+            # Table exists but is malformed - drop and recreate
+            op.drop_table('kyc_share_access_logs')
+            op.create_table(
+                'kyc_share_access_logs',
+                sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+                sa.Column('token_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('kyc_share_tokens.id', ondelete='CASCADE'), nullable=False),
+                sa.Column('requester_ip', sa.String(45), nullable=True),
+                sa.Column('requester_domain', sa.String(255), nullable=True),
+                sa.Column('requester_user_agent', sa.Text, nullable=True),
+                sa.Column('accessed_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+                sa.Column('success', sa.Boolean, default=True, nullable=False),
+                sa.Column('failure_reason', sa.String(255), nullable=True),
+                sa.Column('accessed_permissions', postgresql.JSONB, nullable=False, server_default='[]'),
+            )
+    else:
         op.create_table(
             'kyc_share_access_logs',
             sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-
-            # Token reference
             sa.Column('token_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('kyc_share_tokens.id', ondelete='CASCADE'), nullable=False),
-
-            # Requester information
             sa.Column('requester_ip', sa.String(45), nullable=True),
             sa.Column('requester_domain', sa.String(255), nullable=True),
             sa.Column('requester_user_agent', sa.Text, nullable=True),
-
-            # Access details
             sa.Column('accessed_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
             sa.Column('success', sa.Boolean, default=True, nullable=False),
             sa.Column('failure_reason', sa.String(255), nullable=True),
-
-            # What data was accessed
             sa.Column('accessed_permissions', postgresql.JSONB, nullable=False, server_default='[]'),
         )
 
-    # Create indexes for kyc_share_access_logs
-    if not index_exists('kyc_share_access_logs', 'idx_share_access_token'):
-        op.create_index('idx_share_access_token', 'kyc_share_access_logs', ['token_id'])
-    if not index_exists('kyc_share_access_logs', 'idx_share_access_date'):
-        op.create_index('idx_share_access_date', 'kyc_share_access_logs', ['accessed_at'])
+    # Create indexes for kyc_share_access_logs (only if columns exist)
+    if column_exists('kyc_share_access_logs', 'token_id'):
+        if not index_exists('kyc_share_access_logs', 'idx_share_access_token'):
+            op.create_index('idx_share_access_token', 'kyc_share_access_logs', ['token_id'])
+    if column_exists('kyc_share_access_logs', 'accessed_at'):
+        if not index_exists('kyc_share_access_logs', 'idx_share_access_date'):
+            op.create_index('idx_share_access_date', 'kyc_share_access_logs', ['accessed_at'])
 
 
 def downgrade() -> None:
