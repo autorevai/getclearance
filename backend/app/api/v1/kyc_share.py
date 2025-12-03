@@ -14,8 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user, get_current_tenant_id
-from app.models.tenant import User
+from app.dependencies import TenantDB, AuthenticatedUser
 from app.schemas.kyc_share import (
     ShareTokenCreate,
     ShareTokenResponse,
@@ -51,9 +50,8 @@ router = APIRouter(prefix="/kyc-share", tags=["KYC Share"])
 async def generate_share_token(
     data: ShareTokenCreate,
     request: Request,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    tenant_id: UUID = Depends(get_current_tenant_id),
+    db: TenantDB,
+    user: AuthenticatedUser,
 ):
     """
     Generate a new KYC share token for an applicant.
@@ -75,7 +73,7 @@ async def generate_share_token(
 
         result = await kyc_share_service.generate_share_token(
             db=db,
-            tenant_id=tenant_id,
+            tenant_id=user.tenant_id,
             applicant_id=data.applicant_id,
             shared_with=data.shared_with,
             permissions=data.permissions,
@@ -112,9 +110,8 @@ async def generate_share_token(
 async def list_share_tokens(
     applicant_id: UUID,
     include_expired: bool = False,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    tenant_id: UUID = Depends(get_current_tenant_id),
+    db: TenantDB,
+    user: AuthenticatedUser,
 ):
     """
     List all share tokens for an applicant.
@@ -124,7 +121,7 @@ async def list_share_tokens(
     """
     tokens = await kyc_share_service.get_applicant_tokens(
         db=db,
-        tenant_id=tenant_id,
+        tenant_id=user.tenant_id,
         applicant_id=applicant_id,
         include_expired=include_expired,
     )
@@ -159,9 +156,8 @@ async def list_share_tokens(
 async def revoke_share_token(
     token_id: UUID,
     data: Optional[ShareTokenRevoke] = None,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    tenant_id: UUID = Depends(get_current_tenant_id),
+    db: TenantDB,
+    user: AuthenticatedUser,
 ):
     """
     Revoke a share token immediately.
@@ -173,7 +169,7 @@ async def revoke_share_token(
         reason = data.reason if data else None
         await kyc_share_service.revoke_share_token(
             db=db,
-            tenant_id=tenant_id,
+            tenant_id=user.tenant_id,
             token_id=token_id,
             reason=reason,
         )
@@ -282,9 +278,8 @@ async def verify_share_token(
 async def get_access_history(
     applicant_id: UUID,
     limit: int = 50,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    tenant_id: UUID = Depends(get_current_tenant_id),
+    db: TenantDB,
+    user: AuthenticatedUser,
 ):
     """
     Get access history for an applicant's shared tokens.
@@ -294,7 +289,7 @@ async def get_access_history(
     """
     logs = await kyc_share_service.get_token_access_history(
         db=db,
-        tenant_id=tenant_id,
+        tenant_id=user.tenant_id,
         applicant_id=applicant_id,
         limit=limit,
     )
