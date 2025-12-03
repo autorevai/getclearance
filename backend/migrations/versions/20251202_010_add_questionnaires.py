@@ -28,6 +28,16 @@ def table_exists(table_name):
     return table_name in inspector.get_table_names()
 
 
+def column_exists(table_name, column_name):
+    """Check if a column exists in a table."""
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if not table_exists(table_name):
+        return False
+    columns = [c['name'] for c in inspector.get_columns(table_name)]
+    return column_name in columns
+
+
 def index_exists(table_name, index_name):
     """Check if an index exists on a table."""
     bind = op.get_bind()
@@ -214,25 +224,28 @@ def upgrade() -> None:
             ),
         )
 
-    # Indexes for questionnaire_responses
-    if not index_exists('questionnaire_responses', 'idx_questionnaire_responses_questionnaire'):
-        op.create_index(
-            'idx_questionnaire_responses_questionnaire',
-            'questionnaire_responses',
-            ['questionnaire_id']
-        )
-    if not index_exists('questionnaire_responses', 'idx_questionnaire_responses_applicant'):
-        op.create_index(
-            'idx_questionnaire_responses_applicant',
-            'questionnaire_responses',
-            ['applicant_id']
-        )
-    if not index_exists('questionnaire_responses', 'idx_questionnaire_responses_company'):
-        op.create_index(
-            'idx_questionnaire_responses_company',
-            'questionnaire_responses',
-            ['company_id']
-        )
+    # Indexes for questionnaire_responses (only if columns exist)
+    if column_exists('questionnaire_responses', 'questionnaire_id'):
+        if not index_exists('questionnaire_responses', 'idx_questionnaire_responses_questionnaire'):
+            op.create_index(
+                'idx_questionnaire_responses_questionnaire',
+                'questionnaire_responses',
+                ['questionnaire_id']
+            )
+    if column_exists('questionnaire_responses', 'applicant_id'):
+        if not index_exists('questionnaire_responses', 'idx_questionnaire_responses_applicant'):
+            op.create_index(
+                'idx_questionnaire_responses_applicant',
+                'questionnaire_responses',
+                ['applicant_id']
+            )
+    if column_exists('questionnaire_responses', 'company_id'):
+        if not index_exists('questionnaire_responses', 'idx_questionnaire_responses_company'):
+            op.create_index(
+                'idx_questionnaire_responses_company',
+                'questionnaire_responses',
+                ['company_id']
+            )
 
 
 def downgrade() -> None:

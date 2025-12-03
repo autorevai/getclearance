@@ -28,6 +28,16 @@ def table_exists(table_name):
     return table_name in inspector.get_table_names()
 
 
+def column_exists(table_name, column_name):
+    """Check if a column exists in a table."""
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if not table_exists(table_name):
+        return False
+    columns = [c['name'] for c in inspector.get_columns(table_name)]
+    return column_name in columns
+
+
 def index_exists(table_name, index_name):
     """Check if an index exists on a table."""
     bind = op.get_bind()
@@ -128,30 +138,79 @@ def upgrade() -> None:
             ),
         )
 
-    # Indexes for workflow_rules
-    if not index_exists('workflow_rules', 'idx_workflow_rules_tenant'):
-        op.create_index(
-            'idx_workflow_rules_tenant',
-            'workflow_rules',
-            ['tenant_id']
-        )
-    if not index_exists('workflow_rules', 'idx_workflow_rules_tenant_active'):
-        op.create_index(
-            'idx_workflow_rules_tenant_active',
-            'workflow_rules',
-            ['tenant_id', 'is_active']
-        )
-    if not index_exists('workflow_rules', 'idx_workflow_rules_priority'):
-        op.create_index(
-            'idx_workflow_rules_priority',
-            'workflow_rules',
-            ['tenant_id', 'priority']
-        )
+    # Indexes for workflow_rules (only if columns exist)
+    if column_exists('workflow_rules', 'tenant_id'):
+        if not index_exists('workflow_rules', 'idx_workflow_rules_tenant'):
+            op.create_index(
+                'idx_workflow_rules_tenant',
+                'workflow_rules',
+                ['tenant_id']
+            )
+        if column_exists('workflow_rules', 'is_active'):
+            if not index_exists('workflow_rules', 'idx_workflow_rules_tenant_active'):
+                op.create_index(
+                    'idx_workflow_rules_tenant_active',
+                    'workflow_rules',
+                    ['tenant_id', 'is_active']
+                )
+        if column_exists('workflow_rules', 'priority'):
+            if not index_exists('workflow_rules', 'idx_workflow_rules_priority'):
+                op.create_index(
+                    'idx_workflow_rules_priority',
+                    'workflow_rules',
+                    ['tenant_id', 'priority']
+                )
 
     # ============================================
     # CREATE risk_assessment_logs TABLE
     # ============================================
-    if not table_exists('risk_assessment_logs'):
+    if table_exists('risk_assessment_logs'):
+        if not column_exists('risk_assessment_logs', 'applicant_id'):
+            # Table exists but is malformed - drop and recreate
+            op.drop_table('risk_assessment_logs')
+            op.create_table(
+                'risk_assessment_logs',
+                sa.Column(
+                    'id',
+                    postgresql.UUID(as_uuid=True),
+                    primary_key=True,
+                    server_default=sa.text('gen_random_uuid()')
+                ),
+                sa.Column(
+                    'tenant_id',
+                    postgresql.UUID(as_uuid=True),
+                    sa.ForeignKey('tenants.id', ondelete='CASCADE'),
+                    nullable=False
+                ),
+                sa.Column(
+                    'applicant_id',
+                    postgresql.UUID(as_uuid=True),
+                    sa.ForeignKey('applicants.id', ondelete='CASCADE'),
+                    nullable=False
+                ),
+                sa.Column('overall_level', sa.String(20), nullable=False),
+                sa.Column('overall_score', sa.Integer, nullable=False),
+                sa.Column(
+                    'signals',
+                    postgresql.JSONB,
+                    server_default='[]',
+                    nullable=False
+                ),
+                sa.Column('recommended_action', sa.String(50), nullable=False),
+                sa.Column(
+                    'applied_rule_id',
+                    postgresql.UUID(as_uuid=True),
+                    sa.ForeignKey('workflow_rules.id', ondelete='SET NULL')
+                ),
+                sa.Column('final_action', sa.String(50)),
+                sa.Column(
+                    'created_at',
+                    sa.DateTime(timezone=True),
+                    server_default=sa.text('now()'),
+                    nullable=False
+                ),
+            )
+    else:
         op.create_table(
             'risk_assessment_logs',
             sa.Column(
@@ -172,22 +231,14 @@ def upgrade() -> None:
                 sa.ForeignKey('applicants.id', ondelete='CASCADE'),
                 nullable=False
             ),
-
-            # Assessment results
             sa.Column('overall_level', sa.String(20), nullable=False),
-            # Values: 'low', 'medium', 'high', 'critical'
             sa.Column('overall_score', sa.Integer, nullable=False),
-            # Score: 0-100
-
-            # Signals (JSONB array)
             sa.Column(
                 'signals',
                 postgresql.JSONB,
                 server_default='[]',
                 nullable=False
             ),
-
-            # Recommendation and final action
             sa.Column('recommended_action', sa.String(50), nullable=False),
             sa.Column(
                 'applied_rule_id',
@@ -195,8 +246,6 @@ def upgrade() -> None:
                 sa.ForeignKey('workflow_rules.id', ondelete='SET NULL')
             ),
             sa.Column('final_action', sa.String(50)),
-
-            # Timestamp
             sa.Column(
                 'created_at',
                 sa.DateTime(timezone=True),
@@ -205,19 +254,21 @@ def upgrade() -> None:
             ),
         )
 
-    # Indexes for risk_assessment_logs
-    if not index_exists('risk_assessment_logs', 'idx_risk_logs_applicant'):
-        op.create_index(
-            'idx_risk_logs_applicant',
-            'risk_assessment_logs',
-            ['applicant_id']
-        )
-    if not index_exists('risk_assessment_logs', 'idx_risk_logs_tenant_date'):
-        op.create_index(
-            'idx_risk_logs_tenant_date',
-            'risk_assessment_logs',
-            ['tenant_id', 'created_at']
-        )
+    # Indexes for risk_assessment_logs (only if columns exist)
+    if column_exists('risk_assessment_logs', 'applicant_id'):
+        if not index_exists('risk_assessment_logs', 'idx_risk_logs_applicant'):
+            op.create_index(
+                'idx_risk_logs_applicant',
+                'risk_assessment_logs',
+                ['applicant_id']
+            )
+    if column_exists('risk_assessment_logs', 'tenant_id') and column_exists('risk_assessment_logs', 'created_at'):
+        if not index_exists('risk_assessment_logs', 'idx_risk_logs_tenant_date'):
+            op.create_index(
+                'idx_risk_logs_tenant_date',
+                'risk_assessment_logs',
+                ['tenant_id', 'created_at']
+            )
 
 
 def downgrade() -> None:
