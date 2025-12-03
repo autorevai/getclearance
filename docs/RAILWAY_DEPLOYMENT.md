@@ -439,6 +439,109 @@ async def set_tenant_context(session: AsyncSession, tenant_id: str) -> None:
 
 ---
 
+### Issue 10: Duplicate Alembic Revision IDs
+
+**Problem:** Multiple migrations had the same revision IDs (003, 004, 005), causing Alembic to fail during startup.
+
+**Error:**
+```
+KeyError: '20251202_003'
+```
+
+**Solution:**
+1. Renamed migration files to create a unique linear chain: 005 → 006 → ... → 016
+2. Updated `revision` and `down_revision` in each file
+
+---
+
+### Issue 11: Duplicate Table/Column Errors
+
+**Problem:** Database was in a partial state where some tables/columns existed but migrations weren't marked complete.
+
+**Errors:**
+```
+DuplicateColumn: column "company_id" of relation "screening_checks" already exists
+DuplicateTable: relation "webhook_configs" already exists
+```
+
+**Solution:** Made ALL migrations idempotent by adding helper functions:
+
+```python
+from sqlalchemy import inspect
+
+def table_exists(table_name):
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    return table_name in inspector.get_table_names()
+
+def column_exists(table_name, column_name):
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if not table_exists(table_name):
+        return False
+    columns = [c['name'] for c in inspector.get_columns(table_name)]
+    return column_name in columns
+
+def index_exists(table_name, index_name):
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if not table_exists(table_name):
+        return False
+    indexes = [idx['name'] for idx in inspector.get_indexes(table_name)]
+    return index_name in indexes
+```
+
+Usage in upgrade():
+```python
+def upgrade() -> None:
+    if not table_exists('my_table'):
+        op.create_table('my_table', ...)
+
+    if not column_exists('applicants', 'new_column'):
+        op.add_column('applicants', sa.Column('new_column', ...))
+
+    if not index_exists('my_table', 'idx_my_table_foo'):
+        op.create_index('idx_my_table_foo', 'my_table', ['foo'])
+```
+
+**Important:** ALL 20251202 migrations (001-013) are now idempotent and can safely handle partial database states.
+
+---
+
+## Migration Chain Reference
+
+The complete migration chain is:
+
+```
+Base Schema (from initial setup)
+    ↓
+20251202_001_add_monitoring_alerts.py      (revision: 005)
+    ↓
+20251202_002_add_companies.py               (revision: 006)
+    ↓
+20251202_003_add_settings_tables.py         (revision: 007)
+    ↓
+20251202_004_add_integrations_tables.py     (revision: 008)
+    ↓
+20251202_006_add_gdpr_compliance.py         (revision: 009)
+    ↓
+20251202_007_add_kyc_share.py               (revision: 010)
+    ↓
+20251202_008_add_workflows.py               (revision: 011)
+    ↓
+20251202_009_add_pii_encryption.py          (revision: 012)
+    ↓
+20251202_010_add_questionnaires.py          (revision: 013)
+    ↓
+20251202_011_add_biometrics.py              (revision: 014)
+    ↓
+20251202_012_add_device_fingerprints.py     (revision: 015)
+    ↓
+20251202_013_add_batch_jobs.py              (revision: 016)
+```
+
+---
+
 ## Cost Estimate
 
 Railway Hobby plan (~$5/month) includes:
