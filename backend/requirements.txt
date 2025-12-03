@@ -42,6 +42,7 @@ aioboto3==13.2.0          # Async S3 client
 # EXTERNAL INTEGRATIONS
 # ===========================================
 anthropic==0.39.0         # Claude API
+stripe==7.0.0             # Stripe payments/billing
 
 # ===========================================
 # OCR & IMAGE PROCESSING
