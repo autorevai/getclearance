@@ -15,12 +15,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 import logging
-from app.dependencies import TenantDB, AuthenticatedUser, require_permission
+from app.dependencies import TenantDB, AuthenticatedUser, AuditContext, require_permission
 from app.models import ScreeningCheck, ScreeningHit, ScreeningList, Applicant
 from app.services.screening import (
     screening_service,
     ScreeningServiceError,
     ScreeningConfigError,
+)
+from app.services.audit import (
+    audit_screening_hit_resolved,
+    audit_applicant_flagged,
 )
 
 logger = logging.getLogger(__name__)
@@ -514,6 +518,7 @@ async def resolve_hit(
     data: ResolveHitRequest,
     db: TenantDB,
     user: Annotated[AuthenticatedUser, Depends(require_permission("review:screening"))],
+    ctx: AuditContext,
 ):
     """
     Resolve a screening hit as true match or false positive.
@@ -542,20 +547,191 @@ async def resolve_hit(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Hit already resolved",
         )
-    
+
+    # Capture old resolution for audit
+    old_resolution = hit.resolution_status
+
     # Update hit
     hit.resolution_status = data.resolution
     hit.resolution_notes = data.notes
     hit.resolved_by = UUID(user.id)
     hit.resolved_at = datetime.utcnow()
-    
-    # TODO: If confirmed_true, update applicant flags
+
+    # Create audit log entry for hit resolution
+    await audit_screening_hit_resolved(
+        db=db,
+        tenant_id=user.tenant_id,
+        user_id=UUID(user.id),
+        hit_id=hit.id,
+        old_resolution=old_resolution,
+        new_resolution=data.resolution,
+        notes=data.notes,
+        is_true_positive=(data.resolution == "confirmed_true"),
+        user_email=user.email,
+        ip_address=ctx.ip_address,
+    )
+
+    # If confirmed as true positive, update applicant flags
+    if data.resolution == "confirmed_true":
+        # Get the associated screening check to find applicant
+        check_query = select(ScreeningCheck).where(ScreeningCheck.id == hit.check_id)
+        check_result = await db.execute(check_query)
+        check = check_result.scalar_one_or_none()
+
+        if check and check.applicant_id:
+            applicant = await db.get(Applicant, check.applicant_id)
+            if applicant:
+                # Add to risk flags
+                flags = applicant.flags or []
+                flags.append({
+                    "type": hit.hit_type,
+                    "source": hit.list_source,
+                    "confirmed_at": datetime.utcnow().isoformat(),
+                    "hit_id": str(hit.id),
+                    "matched_name": hit.matched_name,
+                })
+                applicant.flags = flags
+                applicant.risk_level = "high"
+
+                # Audit the applicant flag update
+                await audit_applicant_flagged(
+                    db=db,
+                    tenant_id=user.tenant_id,
+                    user_id=UUID(user.id),
+                    applicant_id=applicant.id,
+                    flag_type=hit.hit_type,
+                    hit_id=hit.id,
+                    user_email=user.email,
+                    ip_address=ctx.ip_address,
+                )
+
     # TODO: Create case if needed
-    # TODO: Create audit log entry
-    
+
     await db.flush()
     await db.refresh(hit)
-    
+
+    return ScreeningHitResponse.model_validate(hit)
+
+
+# ===========================================
+# LIST SCREENING HITS
+# ===========================================
+class ScreeningHitListResponse(BaseModel):
+    """Paginated list of screening hits."""
+    items: list[ScreeningHitResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+@router.get("/hits", response_model=ScreeningHitListResponse)
+async def list_screening_hits(
+    db: TenantDB,
+    user: AuthenticatedUser,
+    status: str | None = Query(None, alias="resolution_status", description="Filter by resolution status"),
+    resolved: bool | None = Query(None, description="Filter by resolved state (false = pending)"),
+    applicant_id: UUID | None = Query(None, description="Filter by applicant"),
+    check_id: UUID | None = Query(None, description="Filter by screening check"),
+    hit_type: str | None = Query(None, description="Filter by hit type (sanctions, pep, adverse_media)"),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """
+    List screening hits with optional filtering.
+
+    Useful for:
+    - Getting all unresolved hits for review queue
+    - Getting hits for a specific applicant
+    - Dashboard stats and reporting
+    """
+    query = (
+        select(ScreeningHit)
+        .join(ScreeningCheck)
+        .where(ScreeningCheck.tenant_id == user.tenant_id)
+    )
+    count_query = (
+        select(func.count(ScreeningHit.id))
+        .join(ScreeningCheck)
+        .where(ScreeningCheck.tenant_id == user.tenant_id)
+    )
+
+    # Filter by resolution status
+    if status:
+        query = query.where(ScreeningHit.resolution_status == status)
+        count_query = count_query.where(ScreeningHit.resolution_status == status)
+
+    # Filter by resolved state (convenience filter)
+    if resolved is not None:
+        if resolved:
+            query = query.where(ScreeningHit.resolution_status != "pending")
+            count_query = count_query.where(ScreeningHit.resolution_status != "pending")
+        else:
+            query = query.where(ScreeningHit.resolution_status == "pending")
+            count_query = count_query.where(ScreeningHit.resolution_status == "pending")
+
+    # Filter by applicant
+    if applicant_id:
+        query = query.where(ScreeningCheck.applicant_id == applicant_id)
+        count_query = count_query.where(ScreeningCheck.applicant_id == applicant_id)
+
+    # Filter by check
+    if check_id:
+        query = query.where(ScreeningHit.check_id == check_id)
+        count_query = count_query.where(ScreeningHit.check_id == check_id)
+
+    # Filter by hit type
+    if hit_type:
+        query = query.where(ScreeningHit.hit_type == hit_type)
+        count_query = count_query.where(ScreeningHit.hit_type == hit_type)
+
+    # Get total count
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    # Apply ordering and pagination
+    query = query.order_by(ScreeningHit.created_at.desc())
+    query = query.offset(offset).limit(limit)
+
+    result = await db.execute(query)
+    hits = result.scalars().all()
+
+    return ScreeningHitListResponse(
+        items=[ScreeningHitResponse.model_validate(h) for h in hits],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+# ===========================================
+# GET SINGLE HIT
+# ===========================================
+@router.get("/hits/{hit_id}", response_model=ScreeningHitResponse)
+async def get_hit(
+    hit_id: UUID,
+    db: TenantDB,
+    user: AuthenticatedUser,
+):
+    """
+    Get a single screening hit by ID.
+    """
+    query = (
+        select(ScreeningHit)
+        .join(ScreeningCheck)
+        .where(
+            ScreeningHit.id == hit_id,
+            ScreeningCheck.tenant_id == user.tenant_id,
+        )
+    )
+    result = await db.execute(query)
+    hit = result.scalar_one_or_none()
+
+    if not hit:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Hit not found",
+        )
+
     return ScreeningHitResponse.model_validate(hit)
 
 

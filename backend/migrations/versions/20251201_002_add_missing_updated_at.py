@@ -30,6 +30,18 @@ def upgrade() -> None:
         )
     )
 
+    # Add updated_at to documents table
+    op.add_column(
+        'documents',
+        sa.Column(
+            'updated_at',
+            sa.DateTime(timezone=True),
+            server_default=sa.text('now()'),
+            nullable=True
+        )
+    )
+
 
 def downgrade() -> None:
     op.drop_column('screening_checks', 'updated_at')
+    op.drop_column('documents', 'updated_at')

@@ -139,6 +139,17 @@ export class ApplicantsService {
   getEvidencePreview(id, options = {}) {
     return this.client.get(`/applicants/${id}/evidence/preview`, options);
   }
+
+  /**
+   * Export applicants to CSV
+   * @param {Object} filters - Filter parameters (status, risk_level, search, ids)
+   * @param {Object} [options] - Request options
+   * @returns {Promise<string>} CSV content
+   */
+  exportCSV(filters = {}, options = {}) {
+    const query = buildQueryString({ ...filters, format: 'csv' });
+    return this.client.requestText(`/applicants/export${query}`, options);
+  }
 }
 
 export default ApplicantsService;

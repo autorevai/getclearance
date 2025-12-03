@@ -8,11 +8,11 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.dependencies import TenantDB, AuthenticatedUser
-from app.models import Applicant
+from app.models import Applicant, Document, BatchJob
 from app.services.ai import ai_service, AIServiceError, AIConfigError
 
 router = APIRouter()
@@ -287,9 +287,239 @@ async def batch_analyze(
                 "error": str(e),
             })
     
+    # Create a batch job record for tracking
+    job = BatchJob(
+        tenant_id=user.tenant_id,
+        job_type="risk_analysis",
+        status="completed",  # Synchronous job, already done
+        progress=100,
+        total_items=len(applicant_ids),
+        processed_items=len(results),
+        failed_items=len(errors),
+        input_data={"applicant_ids": [str(id) for id in applicant_ids]},
+        results=results,
+        errors=errors,
+        started_at=datetime.utcnow(),
+        completed_at=datetime.utcnow(),
+        created_by=UUID(user.id),
+    )
+    db.add(job)
+    await db.flush()
+
     return {
+        "job_id": str(job.id),
         "analyzed": len(results),
         "failed": len(errors),
         "results": results,
         "errors": errors,
     }
+
+
+# ===========================================
+# BATCH JOB STATUS
+# ===========================================
+class BatchJobStatusResponse(BaseModel):
+    """Status of a batch analysis job."""
+    job_id: UUID
+    job_type: str
+    status: str  # pending, processing, completed, failed
+    progress: int  # 0-100
+    total_items: int
+    processed_items: int
+    failed_items: int
+    results: list[dict] = []
+    errors: list[dict] = []
+    started_at: datetime | None
+    completed_at: datetime | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+@router.get("/batch-analyze/{job_id}", response_model=BatchJobStatusResponse)
+async def get_batch_job_status(
+    job_id: UUID,
+    db: TenantDB,
+    user: AuthenticatedUser,
+):
+    """
+    Get status of a batch analysis job.
+
+    Use this to check progress of long-running batch operations.
+    """
+    query = select(BatchJob).where(
+        BatchJob.id == job_id,
+        BatchJob.tenant_id == user.tenant_id,
+    )
+    result = await db.execute(query)
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Batch job not found",
+        )
+
+    return BatchJobStatusResponse(
+        job_id=job.id,
+        job_type=job.job_type,
+        status=job.status,
+        progress=job.progress,
+        total_items=job.total_items,
+        processed_items=job.processed_items,
+        failed_items=job.failed_items,
+        results=job.results or [],
+        errors=job.errors or [],
+        started_at=job.started_at,
+        completed_at=job.completed_at,
+        created_at=job.created_at,
+    )
+
+
+# ===========================================
+# DOCUMENT SUGGESTIONS
+# ===========================================
+class DocumentSuggestion(BaseModel):
+    """A single suggestion for a document."""
+    type: str  # quality, completeness, verification, expiry
+    severity: str  # info, warning, error
+    message: str
+    action: str | None = None  # Suggested action to take
+
+
+class DocumentSuggestionsResponse(BaseModel):
+    """AI-generated suggestions for a document."""
+    document_id: UUID
+    suggestions: list[DocumentSuggestion]
+    generated_at: datetime
+
+
+@router.get("/documents/{document_id}/suggestions", response_model=DocumentSuggestionsResponse)
+async def get_document_suggestions(
+    document_id: UUID,
+    db: TenantDB,
+    user: AuthenticatedUser,
+):
+    """
+    Get AI suggestions for document issues.
+
+    Analyzes the document and provides suggestions for:
+    - Quality improvements (blur, lighting, legibility)
+    - Completeness (missing fields, partial captures)
+    - Verification concerns (tampering indicators, mismatches)
+    - Expiry issues (expired documents)
+    """
+    # Verify document exists and belongs to tenant
+    query = (
+        select(Document)
+        .where(Document.id == document_id)
+        .join(Applicant)
+        .where(Applicant.tenant_id == user.tenant_id)
+    )
+    result = await db.execute(query)
+    document = result.scalar_one_or_none()
+
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+
+    suggestions = []
+
+    # Check document status and generate relevant suggestions
+    if document.status == "pending":
+        suggestions.append(DocumentSuggestion(
+            type="completeness",
+            severity="info",
+            message="Document is pending review",
+            action="Complete document verification",
+        ))
+
+    if document.status == "rejected":
+        suggestions.append(DocumentSuggestion(
+            type="verification",
+            severity="error",
+            message=f"Document was rejected: {document.rejection_reason or 'No reason provided'}",
+            action="Request new document upload",
+        ))
+
+    # Check for expiry
+    if document.expiry_date:
+        from datetime import date
+        if document.expiry_date < date.today():
+            suggestions.append(DocumentSuggestion(
+                type="expiry",
+                severity="error",
+                message="Document has expired",
+                action="Request current, unexpired document",
+            ))
+        elif (document.expiry_date - date.today()).days < 30:
+            suggestions.append(DocumentSuggestion(
+                type="expiry",
+                severity="warning",
+                message="Document expires within 30 days",
+                action="Consider requesting updated document",
+            ))
+
+    # Check OCR confidence if available
+    if document.ocr_confidence is not None:
+        if document.ocr_confidence < 0.7:
+            suggestions.append(DocumentSuggestion(
+                type="quality",
+                severity="warning",
+                message=f"Low OCR confidence ({document.ocr_confidence:.0%}). Document may be unclear.",
+                action="Request higher quality image",
+            ))
+        elif document.ocr_confidence < 0.5:
+            suggestions.append(DocumentSuggestion(
+                type="quality",
+                severity="error",
+                message=f"Very low OCR confidence ({document.ocr_confidence:.0%}). Unable to read document.",
+                action="Reject and request new upload",
+            ))
+
+    # Check for missing extracted data
+    extracted = document.extracted_data or {}
+    if document.document_type in ["passport", "id_card", "drivers_license"]:
+        required_fields = ["full_name", "date_of_birth", "document_number"]
+        missing = [f for f in required_fields if not extracted.get(f)]
+        if missing:
+            suggestions.append(DocumentSuggestion(
+                type="completeness",
+                severity="warning",
+                message=f"Missing extracted fields: {', '.join(missing)}",
+                action="Verify manually or request re-upload",
+            ))
+
+    # Check for fraud signals
+    fraud_signals = document.fraud_signals or {}
+    if fraud_signals.get("tampering_detected"):
+        suggestions.append(DocumentSuggestion(
+            type="verification",
+            severity="error",
+            message="Potential document tampering detected",
+            action="Flag for manual review",
+        ))
+    if fraud_signals.get("face_mismatch"):
+        suggestions.append(DocumentSuggestion(
+            type="verification",
+            severity="error",
+            message="Face on document does not match selfie",
+            action="Escalate to investigation",
+        ))
+
+    # If no suggestions, add a positive one
+    if not suggestions:
+        suggestions.append(DocumentSuggestion(
+            type="info",
+            severity="info",
+            message="No issues detected with this document",
+            action=None,
+        ))
+
+    return DocumentSuggestionsResponse(
+        document_id=document_id,
+        suggestions=suggestions,
+        generated_at=datetime.utcnow(),
+    )

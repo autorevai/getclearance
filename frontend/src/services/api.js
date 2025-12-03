@@ -379,6 +379,53 @@ export class ApiClient {
   }
 
   /**
+   * Make a request that returns text (for CSV exports)
+   * @param {string} endpoint - API endpoint
+   * @param {Object} options - Fetch options
+   * @returns {Promise<string>}
+   */
+  async requestText(endpoint, options = {}) {
+    if (!isOnline()) {
+      throw new ApiError('No internet connection', 0);
+    }
+
+    const token = await this.getToken();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), options.timeout || this.timeout);
+
+    try {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        ...options,
+        signal: options.signal || controller.signal,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'text/csv',
+          ...options.headers,
+        },
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new ApiError(
+          error.detail || `Export failed with status ${response.status}`,
+          response.status,
+          error
+        );
+      }
+
+      return response.text();
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        throw new ApiError('Export timed out', 0);
+      }
+      throw error;
+    }
+  }
+
+  /**
    * GET request
    */
   get(endpoint, options = {}) {

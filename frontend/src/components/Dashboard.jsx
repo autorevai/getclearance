@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp,
   TrendingDown,
@@ -177,11 +178,79 @@ function ErrorState({ message, onRetry }) {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+
+  // Filter state
+  const [dateFilter, setDateFilter] = useState('today');
+  const [productFilter, setProductFilter] = useState('all');
+  const [showDateMenu, setShowDateMenu] = useState(false);
+  const [showProductMenu, setShowProductMenu] = useState(false);
+
   // Fetch dashboard data
   const { data: stats, isLoading: statsLoading, isError: statsError, refetch: refetchStats } = useDashboardStats();
   const { data: screening, isLoading: screeningLoading, isError: screeningError, refetch: refetchScreening } = useScreeningSummary();
   const { data: activity, isLoading: activityLoading, isError: activityError, refetch: refetchActivity } = useRecentActivity();
   const refreshAll = useRefreshDashboard();
+
+  // Handle AI insight actions
+  const handleInsightAction = (insight) => {
+    switch (insight.action) {
+      case 'View Analytics':
+        navigate('/analytics');
+        break;
+      case 'Review Applicants':
+        navigate('/applicants?risk_level=high');
+        break;
+      case 'Run Re-screen':
+        navigate('/screening?needs_rescreen=true');
+        break;
+      default:
+        break;
+    }
+  };
+
+  // Handle activity item click
+  const handleActivityClick = (item) => {
+    switch (item.type) {
+      case 'approved':
+      case 'rejected':
+      case 'resubmission':
+        if (item.applicant_id) {
+          navigate(`/applicants/${item.applicant_id}`);
+        }
+        break;
+      case 'screening_hit':
+        if (item.hit_id) {
+          navigate(`/screening?hit_id=${item.hit_id}`);
+        } else if (item.applicant_id) {
+          navigate(`/applicants/${item.applicant_id}?tab=screening`);
+        }
+        break;
+      case 'document_uploaded':
+        if (item.applicant_id) {
+          navigate(`/applicants/${item.applicant_id}?tab=documents`);
+        }
+        break;
+      default:
+        break;
+    }
+  };
+
+  // Date filter options
+  const dateFilterOptions = [
+    { value: 'today', label: 'Today' },
+    { value: 'week', label: 'This Week' },
+    { value: 'month', label: 'This Month' },
+    { value: 'quarter', label: 'This Quarter' },
+  ];
+
+  // Product filter options
+  const productFilterOptions = [
+    { value: 'all', label: 'All Products' },
+    { value: 'kyc', label: 'KYC' },
+    { value: 'kyb', label: 'KYB' },
+    { value: 'aml', label: 'AML Screening' },
+  ];
 
   // Derive display data from API response
   const kpiCards = buildKpiCards(stats);
@@ -240,7 +309,50 @@ export default function Dashboard() {
           background: var(--bg-hover);
           color: var(--text-primary);
         }
-        
+
+        .filter-btn.active {
+          background: var(--accent-glow);
+          border-color: var(--accent-primary);
+          color: var(--accent-primary);
+        }
+
+        .filter-dropdown-wrapper {
+          position: relative;
+        }
+
+        .filter-dropdown-menu {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          margin-top: 4px;
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          padding: 6px;
+          min-width: 140px;
+          z-index: 100;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        }
+
+        .filter-dropdown-item {
+          padding: 8px 12px;
+          border-radius: 6px;
+          font-size: 13px;
+          color: var(--text-secondary);
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+
+        .filter-dropdown-item:hover {
+          background: var(--bg-hover);
+          color: var(--text-primary);
+        }
+
+        .filter-dropdown-item.active {
+          background: var(--accent-glow);
+          color: var(--accent-primary);
+        }
+
         /* KPI Grid */
         .kpi-grid {
           display: grid;
@@ -458,14 +570,28 @@ export default function Dashboard() {
           font-weight: 600;
         }
         
+        .ai-insight-action:hover {
+          text-decoration: underline;
+        }
+
         /* Activity Feed */
         .activity-item {
           display: flex;
           gap: 12px;
           padding: 14px 0;
           border-bottom: 1px solid var(--border-color);
+          cursor: pointer;
+          transition: background 0.15s;
+          margin: 0 -12px;
+          padding-left: 12px;
+          padding-right: 12px;
+          border-radius: 8px;
         }
-        
+
+        .activity-item:hover {
+          background: var(--bg-hover);
+        }
+
         .activity-item:last-child {
           border-bottom: none;
         }
@@ -756,14 +882,50 @@ export default function Dashboard() {
             <RefreshCw size={14} />
             Refresh
           </button>
-          <button className="filter-btn">
-            <Calendar size={16} />
-            Today
-          </button>
-          <button className="filter-btn">
-            <Filter size={16} />
-            All Products
-          </button>
+          <div className="filter-dropdown-wrapper">
+            <button
+              className={`filter-btn ${showDateMenu ? 'active' : ''}`}
+              onClick={() => { setShowDateMenu(!showDateMenu); setShowProductMenu(false); }}
+            >
+              <Calendar size={16} />
+              {dateFilterOptions.find(o => o.value === dateFilter)?.label}
+            </button>
+            {showDateMenu && (
+              <div className="filter-dropdown-menu">
+                {dateFilterOptions.map((option) => (
+                  <div
+                    key={option.value}
+                    className={`filter-dropdown-item ${dateFilter === option.value ? 'active' : ''}`}
+                    onClick={() => { setDateFilter(option.value); setShowDateMenu(false); }}
+                  >
+                    {option.label}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="filter-dropdown-wrapper">
+            <button
+              className={`filter-btn ${showProductMenu ? 'active' : ''}`}
+              onClick={() => { setShowProductMenu(!showProductMenu); setShowDateMenu(false); }}
+            >
+              <Filter size={16} />
+              {productFilterOptions.find(o => o.value === productFilter)?.label}
+            </button>
+            {showProductMenu && (
+              <div className="filter-dropdown-menu">
+                {productFilterOptions.map((option) => (
+                  <div
+                    key={option.value}
+                    className={`filter-dropdown-item ${productFilter === option.value ? 'active' : ''}`}
+                    onClick={() => { setProductFilter(option.value); setShowProductMenu(false); }}
+                  >
+                    {option.label}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
       
@@ -819,7 +981,10 @@ export default function Dashboard() {
                     <span className="ai-insight-title">{insight.title}</span>
                   </div>
                   <p className="ai-insight-description">{insight.description}</p>
-                  <span className="ai-insight-action">
+                  <span
+                    className="ai-insight-action"
+                    onClick={() => handleInsightAction(insight)}
+                  >
                     {insight.action} <ArrowRight size={12} />
                   </span>
                 </div>
@@ -846,7 +1011,11 @@ export default function Dashboard() {
                 </div>
               ) : (
                 activityItems.map((item, idx) => (
-                  <div key={idx} className="activity-item">
+                  <div
+                    key={idx}
+                    className="activity-item"
+                    onClick={() => handleActivityClick(item)}
+                  >
                     <div className={`activity-icon ${item.type}`}>
                       {item.type === 'approved' && <CheckCircle2 size={16} />}
                       {item.type === 'rejected' && <XCircle size={16} />}

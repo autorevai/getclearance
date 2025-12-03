@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { X, User, Mail, Calendar, Globe, Loader2, AlertCircle } from 'lucide-react';
 import { useCreateApplicant } from '../hooks/useApplicants';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 const styles = `
   .modal-overlay {
@@ -212,8 +213,16 @@ const styles = `
   }
 `;
 
-export default function CreateApplicantModal({ onClose, onSuccess }) {
+export default function CreateApplicantModal({ onClose, onSuccess, triggerRef }) {
   const createApplicant = useCreateApplicant();
+  const emailInputRef = useRef(null);
+
+  // Focus trap with Escape to close and return focus to trigger
+  const focusTrapRef = useFocusTrap(true, {
+    initialFocus: emailInputRef.current,
+    onEscape: createApplicant.isPending ? undefined : onClose,
+    returnFocus: triggerRef?.current,
+  });
 
   const [formData, setFormData] = useState({
     email: '',
@@ -289,7 +298,7 @@ export default function CreateApplicantModal({ onClose, onSuccess }) {
   };
 
   const handleOverlayClick = (e) => {
-    if (e.target === e.currentTarget) {
+    if (e.target === e.currentTarget && !createApplicant.isPending) {
       onClose();
     }
   };
@@ -297,11 +306,17 @@ export default function CreateApplicantModal({ onClose, onSuccess }) {
   return (
     <>
       <style>{styles}</style>
-      <div className="modal-overlay" onClick={handleOverlayClick}>
-        <div className="modal">
+      <div
+        className="modal-overlay"
+        onClick={handleOverlayClick}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+      >
+        <div className="modal" ref={focusTrapRef}>
           <div className="modal-header">
-            <h2 className="modal-title">Create New Applicant</h2>
-            <button className="modal-close" onClick={onClose}>
+            <h2 id="modal-title" className="modal-title">Create New Applicant</h2>
+            <button className="modal-close" onClick={onClose} disabled={createApplicant.isPending} aria-label="Close modal">
               <X size={18} />
             </button>
           </div>
@@ -326,13 +341,13 @@ export default function CreateApplicantModal({ onClose, onSuccess }) {
                   Email <span className="required">*</span>
                 </label>
                 <input
+                  ref={emailInputRef}
                   type="email"
                   name="email"
                   className={`form-input ${errors.email ? 'error' : ''}`}
                   placeholder="applicant@example.com"
                   value={formData.email}
                   onChange={handleChange}
-                  autoFocus
                 />
                 {errors.email && (
                   <div className="form-error">

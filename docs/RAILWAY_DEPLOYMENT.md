@@ -387,6 +387,58 @@ Access via: Railway Dashboard → Service → Logs/Metrics tabs
 
 ---
 
+## Auth0 Integration Issues
+
+For detailed Auth0 documentation, see **`AUTH0_INTEGRATION.md`**.
+
+### Issue 8: 403 Forbidden After Login
+
+**Problem:** Users log in successfully but get 403 errors on API calls.
+
+**Error:**
+```json
+{"detail": "User not associated with a tenant. Please contact support."}
+```
+
+**Root Cause:** JWT token missing `tenant_id` custom claim because:
+1. Auth0 Action not deployed, OR
+2. User's `app_metadata` doesn't have `tenant_id`, OR
+3. User needs to log out and back in (old token)
+
+**Solution:**
+1. Deploy Auth0 Action (see `AUTH0_INTEGRATION.md`)
+2. Set user's `app_metadata.tenant_id` in Auth0 Dashboard
+3. Have user log out and log back in
+
+---
+
+### Issue 9: SET LOCAL SQL Syntax Error
+
+**Problem:** PostgreSQL doesn't accept parameterized queries for `SET` commands with asyncpg.
+
+**Error:**
+```
+asyncpg.exceptions.PostgresSyntaxError: syntax error at or near "$1"
+[SQL: SET LOCAL app.current_tenant_id = $1]
+```
+
+**Solution:** Changed `backend/app/database.py` to use string interpolation with UUID validation:
+
+```python
+async def set_tenant_context(session: AsyncSession, tenant_id: str) -> None:
+    from uuid import UUID as PyUUID
+    try:
+        validated_uuid = str(PyUUID(tenant_id))
+    except (ValueError, TypeError):
+        raise ValueError(f"Invalid tenant_id format: {tenant_id}")
+
+    await session.execute(
+        text(f"SET LOCAL app.current_tenant_id = '{validated_uuid}'")
+    )
+```
+
+---
+
 ## Cost Estimate
 
 Railway Hobby plan (~$5/month) includes:

@@ -443,3 +443,35 @@ export function useBatchReviewApplicants() {
     },
   });
 }
+
+/**
+ * Hook to export applicants to CSV
+ * @returns Mutation object with mutate/mutateAsync functions
+ */
+export function useExportApplicants() {
+  const service = useApplicantsService();
+
+  return useMutation({
+    mutationFn: async (filters = {}) => {
+      const csv = await service.exportCSV(filters);
+
+      // Create and trigger download
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `applicants_export_${new Date().toISOString().split('T')[0]}.csv`;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+
+      // Cleanup
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }, 100);
+
+      return csv;
+    },
+  });
+}

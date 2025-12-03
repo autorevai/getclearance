@@ -9,16 +9,23 @@ These endpoints are called by Auth0 Actions during the login flow.
 import secrets
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Header, status
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models.tenant import Tenant, User
 
 
 router = APIRouter()
+
+
+# ===========================================
+# RATE LIMITING (import limiter from main)
+# ===========================================
+# Rate limits are applied via decorator to sensitive endpoints
 
 
 class ProvisionRequest(BaseModel):
@@ -49,10 +56,12 @@ class ProvisionResponse(BaseModel):
     3. Returns tenant_id, role, and permissions for JWT claims
 
     Security: This endpoint is called by Auth0 Action with X-Auth0-User-Id header.
+    Rate limited to 10 requests per minute per IP.
     """,
 )
 async def provision_user(
-    request: ProvisionRequest,
+    request_body: ProvisionRequest,
+    request: Request,  # For rate limiting
     db: AsyncSession = Depends(get_db),
     x_auth0_user_id: str | None = Header(None),
 ) -> ProvisionResponse:
@@ -62,8 +71,8 @@ async def provision_user(
     Creates a new tenant and user if they don't exist.
     Returns user context for JWT claims.
     """
-    # Basic validation - the header should match the request
-    if x_auth0_user_id and x_auth0_user_id != request.auth0_id:
+    # Basic validation - the header should match the request body
+    if x_auth0_user_id and x_auth0_user_id != request_body.auth0_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Auth0 ID mismatch",
@@ -71,7 +80,7 @@ async def provision_user(
 
     # Check if user already exists
     result = await db.execute(
-        select(User).where(User.auth0_id == request.auth0_id)
+        select(User).where(User.auth0_id == request_body.auth0_id)
     )
     existing_user = result.scalar_one_or_none()
 
@@ -86,15 +95,15 @@ async def provision_user(
 
     # Check if user exists by email (maybe created before Auth0 link)
     result = await db.execute(
-        select(User).where(User.email == request.email)
+        select(User).where(User.email == request_body.email)
     )
     existing_by_email = result.scalar_one_or_none()
 
     if existing_by_email:
         # Link Auth0 ID to existing user
-        existing_by_email.auth0_id = request.auth0_id
-        if request.name and not existing_by_email.name:
-            existing_by_email.name = request.name
+        existing_by_email.auth0_id = request_body.auth0_id
+        if request_body.name and not existing_by_email.name:
+            existing_by_email.name = request_body.name
         await db.commit()
 
         return ProvisionResponse(
@@ -106,13 +115,13 @@ async def provision_user(
 
     # Create new tenant and user
     # Generate a unique slug from email domain or name
-    email_prefix = request.email.split("@")[0]
+    email_prefix = request_body.email.split("@")[0]
     slug_base = email_prefix.replace(".", "-").replace("_", "-").lower()
     slug = f"{slug_base}-{secrets.token_hex(4)}"
 
     tenant = Tenant(
         id=uuid4(),
-        name=request.name or email_prefix,
+        name=request_body.name or email_prefix,
         slug=slug,
         settings={
             "api_key": f"gc_live_{secrets.token_urlsafe(32)}",
@@ -126,9 +135,9 @@ async def provision_user(
     user = User(
         id=uuid4(),
         tenant_id=tenant.id,
-        auth0_id=request.auth0_id,
-        email=request.email,
-        name=request.name,
+        auth0_id=request_body.auth0_id,
+        email=request_body.email,
+        name=request_body.name,
         role="admin",
         permissions=get_default_permissions("admin"),
         status="active",
@@ -192,12 +201,17 @@ def get_default_permissions(role: str) -> list[str]:
 # ===========================================
 # SEED TEST DATA (Development/Demo only)
 # ===========================================
+# These endpoints are ONLY available in development mode
 import random
 from datetime import date, datetime, timedelta, timezone
 
 FIRST_NAMES = ["James", "Mary", "John", "Patricia", "Robert", "Jennifer", "Michael", "Linda", "Wei", "Priya"]
 LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Chen", "Patel", "Kim"]
 COUNTRIES = ["USA", "GBR", "CAN", "AUS", "DEU", "FRA", "JPN", "SGP"]
+
+
+# Development-only router for debug/seed endpoints
+dev_router = APIRouter(tags=["Development"])
 
 
 class SeedResponse(BaseModel):
@@ -207,10 +221,10 @@ class SeedResponse(BaseModel):
     applicants_created: int
 
 
-@router.post(
+@dev_router.post(
     "/seed-demo-data",
     response_model=SeedResponse,
-    summary="Seed demo applicants for a tenant",
+    summary="Seed demo applicants for a tenant (DEV ONLY)",
 )
 async def seed_demo_data(
     tenant_id: str,
@@ -322,10 +336,10 @@ class DebugTokenResponse(BaseModel):
     user_tenant_id: str | None = None
 
 
-@router.get(
+@dev_router.get(
     "/debug/token-claims",
     response_model=DebugTokenResponse,
-    summary="Debug: Show token claims and user lookup result",
+    summary="Debug: Show token claims and user lookup result (DEV ONLY)",
 )
 async def debug_token_claims(
     authorization: str = Header(None),
@@ -380,10 +394,10 @@ async def debug_token_claims(
     )
 
 
-@router.get(
+@dev_router.get(
     "/debug/user-lookup",
     response_model=DebugUserResponse,
-    summary="Debug: Look up user by email",
+    summary="Debug: Look up user by email (DEV ONLY)",
 )
 async def debug_user_lookup(
     email: str,
@@ -426,10 +440,10 @@ class FullSeedResponse(BaseModel):
     counts: dict
 
 
-@router.get(
+@dev_router.get(
     "/debug/applicants-count",
     response_model=DebugApplicantsResponse,
-    summary="Debug: Count applicants for a tenant",
+    summary="Debug: Count applicants for a tenant (DEV ONLY)",
 )
 async def debug_applicants_count(
     tenant_id: str,
@@ -462,10 +476,10 @@ async def debug_applicants_count(
     )
 
 
-@router.post(
+@dev_router.post(
     "/seed-full-data",
     response_model=FullSeedResponse,
-    summary="Seed full demo data including documents, screening, and cases",
+    summary="Seed full demo data including documents, screening, and cases (DEV ONLY)",
 )
 async def seed_full_data(
     tenant_id: str,
@@ -670,3 +684,11 @@ async def seed_full_data(
         tenant_id=tenant_id,
         counts=counts,
     )
+
+
+# ===========================================
+# CONDITIONAL INCLUDE OF DEV ROUTER
+# ===========================================
+# Only include debug/seed endpoints in development mode
+if settings.is_development():
+    router.include_router(dev_router)

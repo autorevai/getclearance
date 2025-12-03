@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 import { AlertTriangle, X, Loader2 } from 'lucide-react';
-import { useKeyboardShortcut } from '../../hooks/useKeyboardShortcut';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 const styles = `
   .confirm-overlay {
@@ -203,21 +203,24 @@ export default function ConfirmDialog({
   isLoading = false,
   onConfirm,
   onCancel,
+  triggerRef, // Optional ref to element that triggered the dialog (for focus return)
 }) {
   const confirmButtonRef = useRef(null);
 
-  // Focus confirm button when dialog opens
-  useEffect(() => {
-    if (isOpen && confirmButtonRef.current) {
-      confirmButtonRef.current.focus();
+  // Focus trap with keyboard handling (Escape to close, focus returns to trigger)
+  const focusTrapRef = useFocusTrap(isOpen, {
+    initialFocus: confirmButtonRef.current,
+    onEscape: isLoading ? undefined : onCancel,
+    returnFocus: triggerRef?.current,
+  });
+
+  // Handle Enter key for confirmation
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !isLoading && document.activeElement?.tagName !== 'BUTTON') {
+      e.preventDefault();
+      onConfirm();
     }
-  }, [isOpen]);
-
-  // Escape to cancel
-  useKeyboardShortcut('Escape', onCancel, { enabled: isOpen });
-
-  // Enter to confirm
-  useKeyboardShortcut('Enter', onConfirm, { enabled: isOpen && !isLoading });
+  };
 
   if (!isOpen) return null;
 
@@ -239,8 +242,9 @@ export default function ConfirmDialog({
         aria-modal="true"
         aria-labelledby="confirm-title"
         aria-describedby="confirm-message"
+        onKeyDown={handleKeyDown}
       >
-        <div className="confirm-dialog">
+        <div className="confirm-dialog" ref={focusTrapRef}>
           <div className="confirm-header">
             <div className={`confirm-icon ${variant}`}>
               <Icon size={20} />

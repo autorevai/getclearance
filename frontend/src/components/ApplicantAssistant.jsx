@@ -14,8 +14,10 @@ import {
   Paperclip,
   Image,
   X,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
+import { useAskAssistant } from '../hooks/useAI';
 
 const suggestedQuestions = [
   { icon: FileText, text: "What documents do I need?", category: 'docs' },
@@ -24,33 +26,22 @@ const suggestedQuestions = [
   { icon: HelpCircle, text: "Why was my document rejected?", category: 'rejection' },
 ];
 
-const mockConversation = [
-  {
-    role: 'assistant',
-    content: "Hi! I'm here to help you complete your identity verification. What would you like to know?",
-    timestamp: new Date()
-  }
-];
-
-const documentRequirements = {
-  'United States': {
-    accepted: ['Passport', 'Driver\'s License', 'State ID'],
-    proofOfAddress: ['Utility bill', 'Bank statement', 'Government letter'],
-    notes: 'Documents must be less than 3 months old'
-  },
-  'Mexico': {
-    accepted: ['Passport', 'INE/IFE', 'Cédula Profesional'],
-    proofOfAddress: ['CFE bill', 'Bank statement', 'PREDIAL'],
-    notes: 'INE must show current address'
-  }
+const initialMessage = {
+  id: 'welcome',
+  role: 'assistant',
+  content: "Hi! I'm here to help you complete your identity verification. What would you like to know?",
+  timestamp: new Date()
 };
 
-export default function ApplicantAssistant({ workflowSteps = [], currentStep = 0, userCountry = 'United States' }) {
-  const [messages, setMessages] = useState(mockConversation);
+export default function ApplicantAssistant({ workflowSteps = [], currentStep = 0, userCountry = 'United States', applicantId = null }) {
+  const [messages, setMessages] = useState([initialMessage]);
   const [inputValue, setInputValue] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
   const [language, setLanguage] = useState('en');
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // Use real AI hook
+  const askAssistantMutation = useAskAssistant();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -61,64 +52,175 @@ export default function ApplicantAssistant({ workflowSteps = [], currentStep = 0
   }, [messages]);
 
   const handleSend = async () => {
-    if (!inputValue.trim()) return;
-    
+    if (!inputValue.trim() || askAssistantMutation.isPending) return;
+
     const userMessage = {
+      id: `user-${Date.now()}`,
       role: 'user',
       content: inputValue,
       timestamp: new Date()
     };
-    
-    setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
-    setIsTyping(true);
-    
-    // Simulate AI response
-    setTimeout(() => {
-      const response = generateResponse(inputValue);
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: response,
-        timestamp: new Date()
-      }]);
-      setIsTyping(false);
-    }, 1000);
-  };
 
-  const generateResponse = (question) => {
-    const q = question.toLowerCase();
-    
-    if (q.includes('document') || q.includes('need') || q.includes('require')) {
-      const docs = documentRequirements[userCountry];
-      return `For verification in ${userCountry}, we accept:\n\n📄 **ID Documents:** ${docs.accepted.join(', ')}\n\n📍 **Proof of Address:** ${docs.proofOfAddress.join(', ')}\n\n⚠️ ${docs.notes}\n\nWould you like tips on how to photograph your documents?`;
+    setMessages(prev => [...prev, userMessage]);
+    const query = inputValue;
+    setInputValue('');
+
+    try {
+      // Call real AI API
+      const response = await askAssistantMutation.mutateAsync({
+        query,
+        applicantId,
+        context: {
+          country: userCountry,
+          language,
+          currentStep,
+          workflowSteps
+        }
+      });
+
+      setMessages(prev => [...prev, {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: response.response,
+        timestamp: new Date(response.generated_at || Date.now()),
+        sources: response.sources
+      }]);
+    } catch (error) {
+      console.error('AI Assistant error:', error);
+      // Add error message to chat
+      setMessages(prev => [...prev, {
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: "I'm sorry, I encountered an error processing your request. Please try again in a moment.",
+        timestamp: new Date(),
+        isError: true
+      }]);
     }
-    
-    if (q.includes('selfie') || q.includes('photo') || q.includes('face')) {
-      return `Here are tips for a successful selfie verification:\n\n✅ **Good lighting** - Face a window or light source\n✅ **Neutral background** - Plain wall works best\n✅ **Remove accessories** - Take off glasses, hats, masks\n✅ **Look straight** - Keep your face centered in the frame\n✅ **Don't smile** - Keep a neutral expression\n\nThe camera will guide you through the process. Ready to try?`;
-    }
-    
-    if (q.includes('reject') || q.includes('fail') || q.includes('denied')) {
-      return `Common reasons for document rejection include:\n\n❌ **Blurry image** - Ensure good lighting and steady hands\n❌ **Glare or shadows** - Avoid flash and direct light on the document\n❌ **Cropped edges** - Make sure all four corners are visible\n❌ **Expired document** - Check the expiration date\n❌ **Wrong document type** - Use an accepted ID for your country\n\nWould you like me to check your specific rejection reason?`;
-    }
-    
-    if (q.includes('country') || q.includes('support')) {
-      return `We currently support identity verification in 190+ countries! Most government-issued IDs are accepted.\n\nFor ${userCountry}, we accept: ${documentRequirements[userCountry]?.accepted.join(', ') || 'Passport, National ID'}\n\nIs there a specific document you'd like to use?`;
-    }
-    
-    if (q.includes('long') || q.includes('time') || q.includes('how long')) {
-      return `The verification process typically takes:\n\n⏱️ **Document upload:** 2-3 minutes\n⏱️ **Selfie verification:** 1-2 minutes\n⏱️ **Review time:** Usually instant, up to 24 hours for manual review\n\nMost applications are processed within minutes!`;
-    }
-    
-    if (q.includes('translate') || q.includes('spanish') || q.includes('language')) {
-      return `I can help in multiple languages! 🌍\n\nJust let me know your preferred language, or I can automatically translate document requirements and instructions for you.\n\nCurrently available: English, Spanish, French, German, Portuguese, Chinese, Japanese, Korean, Arabic`;
-    }
-    
-    return `I understand you're asking about "${question}". Let me help!\n\nTo complete your verification, you'll need to:\n1. Upload a valid ID document\n2. Complete a selfie verification\n3. Provide any additional information requested\n\nIs there a specific step you need help with?`;
   };
 
   const handleSuggestion = (suggestion) => {
-    setInputValue(suggestion.text);
+    // Auto-send the suggestion instead of just filling input
+    if (askAssistantMutation.isPending) return;
+
+    const userMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: suggestion.text,
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+
+    askAssistantMutation.mutateAsync({
+      query: suggestion.text,
+      applicantId,
+      context: {
+        country: userCountry,
+        language,
+        currentStep,
+        workflowSteps
+      }
+    }).then(response => {
+      setMessages(prev => [...prev, {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: response.response,
+        timestamp: new Date(response.generated_at || Date.now()),
+        sources: response.sources
+      }]);
+    }).catch(error => {
+      console.error('AI Assistant error:', error);
+      setMessages(prev => [...prev, {
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: "I'm sorry, I encountered an error processing your request. Please try again in a moment.",
+        timestamp: new Date(),
+        isError: true
+      }]);
+    });
   };
+
+  const handleLanguageChange = (newLang) => {
+    setLanguage(newLang);
+    setShowLanguageMenu(false);
+  };
+
+  const handleAttachClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset file input
+    e.target.value = '';
+
+    // Add file message to chat
+    const userMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: `[Attached: ${file.name}]`,
+      timestamp: new Date(),
+      file: { name: file.name, type: file.type, size: file.size }
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+
+    try {
+      // Send with file context
+      const response = await askAssistantMutation.mutateAsync({
+        query: `I've attached a document: ${file.name}. Can you help me understand if this is the right type of document for verification?`,
+        applicantId,
+        context: {
+          country: userCountry,
+          language,
+          currentStep,
+          workflowSteps,
+          attachedFile: {
+            name: file.name,
+            type: file.type,
+            size: file.size
+          }
+        }
+      });
+
+      setMessages(prev => [...prev, {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: response.response,
+        timestamp: new Date(response.generated_at || Date.now()),
+        sources: response.sources
+      }]);
+    } catch (error) {
+      console.error('AI Assistant error:', error);
+      setMessages(prev => [...prev, {
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: "I'm sorry, I couldn't process your document. Please try again in a moment.",
+        timestamp: new Date(),
+        isError: true
+      }]);
+    }
+  };
+
+  const [showLanguageMenu, setShowLanguageMenu] = useState(false);
+
+  const languages = [
+    { code: 'en', label: 'English' },
+    { code: 'es', label: 'Español' },
+    { code: 'fr', label: 'Français' },
+    { code: 'de', label: 'Deutsch' },
+    { code: 'pt', label: 'Português' },
+    { code: 'zh', label: '中文' },
+    { code: 'ja', label: '日本語' },
+    { code: 'ko', label: '한국어' },
+    { code: 'ar', label: 'العربية' }
+  ];
+
+  // Calculate progress from props
+  const totalSteps = workflowSteps.length || 3;
+  const progressPercent = totalSteps > 0 ? ((currentStep + 1) / totalSteps) * 100 : 33;
 
   return (
     <div className="applicant-assistant">
@@ -190,6 +292,44 @@ export default function ApplicantAssistant({ workflowSteps = [], currentStep = 0
           color: white;
           font-size: 13px;
           cursor: pointer;
+          transition: background 0.15s;
+        }
+
+        .language-btn:hover {
+          background: rgba(255, 255, 255, 0.3);
+        }
+
+        .language-menu {
+          position: absolute;
+          top: 100%;
+          right: 0;
+          margin-top: 8px;
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          padding: 6px;
+          min-width: 140px;
+          z-index: 100;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .language-option {
+          padding: 8px 12px;
+          border-radius: 6px;
+          font-size: 13px;
+          color: var(--text-secondary);
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+
+        .language-option:hover {
+          background: var(--bg-hover);
+          color: var(--text-primary);
+        }
+
+        .language-option.active {
+          background: var(--accent-glow);
+          color: var(--accent-primary);
         }
         
         /* Progress Bar */
@@ -375,6 +515,20 @@ export default function ApplicantAssistant({ workflowSteps = [], currentStep = 0
           0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
           30% { transform: translateY(-4px); opacity: 1; }
         }
+
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        .spin {
+          animation: spin 1s linear infinite;
+        }
+
+        .message-bubble.error {
+          background: rgba(239, 68, 68, 0.1);
+          border: 1px solid var(--danger);
+        }
         
         /* Suggestions */
         .suggestions {
@@ -527,10 +681,28 @@ export default function ApplicantAssistant({ workflowSteps = [], currentStep = 0
             Online • Ready to help
           </div>
         </div>
-        <button className="language-btn">
-          <Languages size={14} />
-          EN
-        </button>
+        <div style={{ position: 'relative' }}>
+          <button
+            className="language-btn"
+            onClick={() => setShowLanguageMenu(!showLanguageMenu)}
+          >
+            <Languages size={14} />
+            {languages.find(l => l.code === language)?.label.slice(0, 2).toUpperCase() || 'EN'}
+          </button>
+          {showLanguageMenu && (
+            <div className="language-menu">
+              {languages.map((lang) => (
+                <div
+                  key={lang.code}
+                  className={`language-option ${language === lang.code ? 'active' : ''}`}
+                  onClick={() => handleLanguageChange(lang.code)}
+                >
+                  {lang.label}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       
       <div className="progress-section">
@@ -560,28 +732,31 @@ export default function ApplicantAssistant({ workflowSteps = [], currentStep = 0
       </div>
       
       <div className="messages-container">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`message ${msg.role}`}>
+        {messages.map((msg) => (
+          <div key={msg.id || msg.timestamp} className={`message ${msg.role === 'user' ? 'user' : 'assistant'}`}>
             <div className="message-avatar">
-              {msg.role === 'assistant' ? <Sparkles size={16} /> : <User size={16} />}
+              {msg.role === 'user' ? <User size={16} /> : (
+                msg.isError ? <AlertCircle size={16} /> : <Sparkles size={16} />
+              )}
             </div>
             <div>
-              <div 
-                className="message-bubble"
-                dangerouslySetInnerHTML={{ 
+              <div
+                className={`message-bubble ${msg.isError ? 'error' : ''}`}
+                dangerouslySetInnerHTML={{
                   __html: msg.content
                     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                    .replace(/\n/g, '<br />') 
+                    .replace(/\n/g, '<br />')
                 }}
               />
               <div className="message-time">
-                {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {(msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp))
+                  .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
           </div>
         ))}
         
-        {isTyping && (
+        {askAssistantMutation.isPending && (
           <div className="message assistant">
             <div className="message-avatar">
               <Sparkles size={16} />
@@ -616,26 +791,43 @@ export default function ApplicantAssistant({ workflowSteps = [], currentStep = 0
       )}
       
       <div className="input-section">
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileSelect}
+          accept="image/*,.pdf"
+          style={{ display: 'none' }}
+        />
         <div className="input-wrapper">
           <div className="input-box">
             <input
               type="text"
               className="message-input"
-              placeholder="Ask me anything about verification..."
+              placeholder={askAssistantMutation.isPending ? "Thinking..." : "Ask me anything about verification..."}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+              disabled={askAssistantMutation.isPending}
             />
-            <button className="attach-btn" title="Attach image">
-              <Image size={18} />
+            <button
+              className="attach-btn"
+              title="Attach document"
+              onClick={handleAttachClick}
+              disabled={askAssistantMutation.isPending}
+            >
+              <Paperclip size={18} />
             </button>
           </div>
-          <button 
+          <button
             className="send-btn"
             onClick={handleSend}
-            disabled={!inputValue.trim()}
+            disabled={!inputValue.trim() || askAssistantMutation.isPending}
           >
-            <Send size={18} />
+            {askAssistantMutation.isPending ? (
+              <Loader2 size={18} className="spin" />
+            ) : (
+              <Send size={18} />
+            )}
           </button>
         </div>
       </div>

@@ -26,7 +26,8 @@ import {
   Copy,
   Fingerprint,
   Monitor,
-  Loader2
+  Loader2,
+  Plus
 } from 'lucide-react';
 import { useApplicant, useApplicantTimeline, useReviewApplicant, useDownloadEvidence } from '../hooks/useApplicants';
 import { useRiskSummary, useRegenerateRiskSummary } from '../hooks/useAI';
@@ -35,6 +36,9 @@ import { useToast } from '../contexts/ToastContext';
 import { ApplicantDetailSkeleton } from './shared/LoadingSkeleton';
 import { ErrorState, NotFound } from './shared/ErrorState';
 import { ConfirmDialog } from './shared';
+import DocumentUpload from './DocumentUpload';
+import DocumentList from './DocumentList';
+import DocumentPreview from './DocumentPreview';
 
 const tabs = [
   { id: 'overview', label: 'Overview' },
@@ -118,6 +122,10 @@ export default function ApplicantDetail() {
     action: null,
   });
 
+  // Document preview state
+  const [previewDocument, setPreviewDocument] = useState(null);
+  const [showUploadForm, setShowUploadForm] = useState(false);
+
   // Fetch applicant data
   const { data: applicant, isLoading, error, refetch } = useApplicant(id);
 
@@ -159,6 +167,7 @@ export default function ApplicantDetail() {
 
   const executeReviewAction = async () => {
     const action = confirmDialog.action;
+    const previousStatus = applicant?.review_status;
     setConfirmDialog({ isOpen: false, action: null });
 
     try {
@@ -167,9 +176,41 @@ export default function ApplicantDetail() {
         decision: action,
         notes: `${action === 'approve' ? 'Approved' : 'Rejected'} via dashboard`,
       });
-      toast.success(`Applicant ${action === 'approve' ? 'approved' : 'rejected'} successfully`);
+
+      // Show success toast with undo option
+      toast.success(
+        `Applicant ${action === 'approve' ? 'approved' : 'rejected'} successfully`,
+        {
+          duration: 10000, // 10 second undo window
+          action: previousStatus && previousStatus !== action ? {
+            label: 'Undo',
+            onClick: async () => {
+              try {
+                // Revert to previous status
+                const revertAction = previousStatus === 'approved' ? 'approve' :
+                                    previousStatus === 'rejected' ? 'reject' : 'request_info';
+                await reviewMutation.mutateAsync({
+                  id,
+                  decision: revertAction,
+                  notes: `Reverted from ${action} to ${previousStatus} via undo`,
+                });
+                toast.info('Action undone - applicant status reverted');
+              } catch (undoErr) {
+                toast.error(`Failed to undo: ${undoErr.message}`);
+              }
+            },
+          } : undefined,
+        }
+      );
     } catch (err) {
-      toast.error(`Failed to ${action} applicant: ${err.message}`);
+      toast.error(`Failed to ${action} applicant: ${err.message}`, {
+        action: {
+          label: 'Retry',
+          onClick: () => {
+            setConfirmDialog({ isOpen: true, action });
+          },
+        },
+      });
     }
   };
 
@@ -1294,62 +1335,60 @@ export default function ApplicantDetail() {
           )}
 
           {activeTab === 'documents' && (
-            <div className="card">
-              <div className="card-header">
-                <div className="card-title">
-                  <FileText size={16} />
-                  Documents
+            <>
+              {/* Upload Section */}
+              <div className="card" style={{ marginBottom: 24 }}>
+                <div className="card-header">
+                  <div className="card-title">
+                    <FileText size={16} />
+                    Upload Document
+                  </div>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: '6px 12px', fontSize: 13 }}
+                    onClick={() => setShowUploadForm(!showUploadForm)}
+                  >
+                    {showUploadForm ? (
+                      <>Hide Form</>
+                    ) : (
+                      <>
+                        <Plus size={14} />
+                        New Upload
+                      </>
+                    )}
+                  </button>
                 </div>
-              </div>
-              <div className="card-content">
-                {applicant.documents && applicant.documents.length > 0 ? (
-                  applicant.documents.map((doc, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        padding: '16px 0',
-                        borderBottom: idx < applicant.documents.length - 1 ? '1px solid var(--border-color)' : 'none'
+                {showUploadForm && (
+                  <div className="card-content">
+                    <DocumentUpload
+                      applicantId={id}
+                      analyze={true}
+                      onUploadComplete={(doc) => {
+                        setShowUploadForm(false);
+                        refetch();
                       }}
-                    >
-                      <div style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 8,
-                        background: 'var(--bg-tertiary)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        <FileText size={20} style={{ color: 'var(--text-muted)' }} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 14, fontWeight: 500 }}>{doc.type || doc.document_type}</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                          {doc.file_name || doc.filename} • {formatDateTime(doc.uploaded_at || doc.created_at)}
-                        </div>
-                      </div>
-                      <span style={{
-                        padding: '4px 8px',
-                        borderRadius: 4,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        background: doc.status === 'verified' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-tertiary)',
-                        color: doc.status === 'verified' ? 'var(--success)' : 'var(--text-muted)'
-                      }}>
-                        {doc.status?.toUpperCase() || 'PENDING'}
-                      </span>
-                    </div>
-                  ))
-                ) : (
-                  <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 40 }}>
-                    No documents uploaded yet
+                    />
                   </div>
                 )}
               </div>
-            </div>
+
+              {/* Documents List */}
+              <div className="card">
+                <div className="card-header">
+                  <div className="card-title">
+                    <FileText size={16} />
+                    Uploaded Documents
+                  </div>
+                </div>
+                <div className="card-content">
+                  <DocumentList
+                    applicantId={id}
+                    onDocumentClick={(doc) => setPreviewDocument(doc)}
+                    showEmpty={true}
+                  />
+                </div>
+              </div>
+            </>
           )}
 
           {activeTab === 'linked' && (
@@ -1513,6 +1552,13 @@ export default function ApplicantDetail() {
         isLoading={reviewMutation.isPending}
         onConfirm={executeReviewAction}
         onCancel={() => setConfirmDialog({ isOpen: false, action: null })}
+      />
+
+      {/* Document Preview Modal */}
+      <DocumentPreview
+        document={previewDocument}
+        isOpen={!!previewDocument}
+        onClose={() => setPreviewDocument(null)}
       />
     </div>
   );

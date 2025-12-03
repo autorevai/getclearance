@@ -21,6 +21,7 @@ from app.models.base import UUIDMixin, TimestampMixin
 if TYPE_CHECKING:
     from app.models.applicant import Applicant
     from app.models.tenant import Tenant, User
+    from app.models.company import Company
 
 
 class ScreeningList(Base, UUIDMixin):
@@ -83,7 +84,10 @@ class ScreeningCheck(Base, UUIDMixin, TimestampMixin):
         PG_UUID(as_uuid=True),
         ForeignKey("applicants.id", ondelete="CASCADE"),
     )
-    company_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True))
+    company_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="CASCADE"),
+    )
     
     # What was screened
     entity_type: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -110,6 +114,11 @@ class ScreeningCheck(Base, UUIDMixin, TimestampMixin):
     
     # Relationships
     applicant: Mapped["Applicant | None"] = relationship("Applicant", back_populates="screening_checks")
+    company: Mapped["Company | None"] = relationship(
+        "Company",
+        foreign_keys=[company_id],
+        back_populates="screening_checks"
+    )
     hits: Mapped[list["ScreeningHit"]] = relationship(
         "ScreeningHit", back_populates="check", cascade="all, delete-orphan"
     )

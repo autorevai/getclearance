@@ -14,8 +14,13 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.dependencies import TenantDB, AuthenticatedUser, require_permission
+from app.dependencies import TenantDB, AuthenticatedUser, AuditContext, require_permission
 from app.models import Case, CaseNote
+from app.services.audit import (
+    audit_case_created,
+    audit_case_resolved,
+    audit_case_note_added,
+)
 
 router = APIRouter()
 
@@ -42,7 +47,10 @@ class CaseUpdate(BaseModel):
     description: str | None = None
     priority: str | None = None
     status: str | None = None
-    assignee_id: UUID | None = None
+    # Accept both assignee_id and assigned_to for frontend compatibility
+    assignee_id: UUID | None = Field(default=None, alias="assigned_to")
+
+    model_config = {"populate_by_name": True}  # Accept both field name and alias
 
 
 class CaseResolve(BaseModel):
@@ -223,6 +231,7 @@ async def create_case(
     data: CaseCreate,
     db: TenantDB,
     user: Annotated[AuthenticatedUser, Depends(require_permission("write:cases"))],
+    ctx: AuditContext,
 ):
     """
     Create a new investigation case.
@@ -244,14 +253,30 @@ async def create_case(
         source="manual",
     )
     db.add(case)
-    
-    # TODO: Calculate SLA based on priority
-    # TODO: Create audit log entry
-    # TODO: Send notification to assignee
-    
     await db.flush()
+
+    # TODO: Calculate SLA based on priority
+    # TODO: Send notification to assignee
+
+    # Create audit log entry
+    await audit_case_created(
+        db=db,
+        tenant_id=user.tenant_id,
+        user_id=UUID(user.id),
+        case_id=case.id,
+        case_data={
+            "case_number": case_number,
+            "title": data.title,
+            "type": data.type,
+            "priority": data.priority,
+            "applicant_id": str(data.applicant_id) if data.applicant_id else None,
+        },
+        user_email=user.email,
+        ip_address=ctx.ip_address,
+    )
+
     await db.refresh(case)
-    
+
     return CaseResponse.model_validate(case)
 
 
@@ -307,6 +332,7 @@ async def resolve_case(
     data: CaseResolve,
     db: TenantDB,
     user: Annotated[AuthenticatedUser, Depends(require_permission("review:cases"))],
+    ctx: AuditContext,
 ):
     """
     Resolve a case with a final decision.
@@ -333,21 +359,36 @@ async def resolve_case(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Case already resolved",
         )
-    
+
+    # Capture old status for audit
+    old_status = case.status
+
     # Resolve
     case.status = "resolved"
     case.resolution = data.resolution
     case.resolution_notes = data.notes
     case.resolved_at = datetime.utcnow()
     case.updated_at = datetime.utcnow()
-    
+
     # TODO: Update related applicant/screening hit
-    # TODO: Create audit log
     # TODO: Send notifications
-    
+
+    # Create audit log
+    await audit_case_resolved(
+        db=db,
+        tenant_id=user.tenant_id,
+        user_id=UUID(user.id),
+        case_id=case.id,
+        old_status=old_status,
+        resolution=data.resolution,
+        notes=data.notes,
+        user_email=user.email,
+        ip_address=ctx.ip_address,
+    )
+
     await db.flush()
     await db.refresh(case)
-    
+
     return CaseResponse.model_validate(case)
 
 
@@ -360,6 +401,7 @@ async def add_note(
     data: AddNote,
     db: TenantDB,
     user: AuthenticatedUser,
+    ctx: AuditContext,
 ):
     """
     Add a note to a case.
@@ -385,8 +427,20 @@ async def add_note(
         is_ai_generated=False,
     )
     db.add(note)
-    
     await db.flush()
+
+    # Create audit log entry
+    await audit_case_note_added(
+        db=db,
+        tenant_id=user.tenant_id,
+        user_id=UUID(user.id),
+        case_id=case_id,
+        note_id=note.id,
+        content_preview=data.content[:100],
+        user_email=user.email,
+        ip_address=ctx.ip_address,
+    )
+
     await db.refresh(note)
-    
+
     return CaseNoteResponse.model_validate(note)

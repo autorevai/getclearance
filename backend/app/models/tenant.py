@@ -17,6 +17,7 @@ from app.models.base import UUIDMixin, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.applicant import Applicant
+    from app.models.company import Company
 
 
 class Tenant(Base, UUIDMixin, TimestampMixin):
@@ -44,7 +45,8 @@ class Tenant(Base, UUIDMixin, TimestampMixin):
     # Relationships
     users: Mapped[list["User"]] = relationship("User", back_populates="tenant")
     applicants: Mapped[list["Applicant"]] = relationship("Applicant", back_populates="tenant")
-    
+    companies: Mapped[list["Company"]] = relationship("Company", back_populates="tenant")
+
     def __repr__(self) -> str:
         return f"<Tenant {self.slug}>"
 

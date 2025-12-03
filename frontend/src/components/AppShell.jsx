@@ -22,13 +22,15 @@ import {
   Sun,
   LogOut
 } from 'lucide-react';
+import SearchModal from './SearchModal';
+import { useNavigationCounts, formatBadgeCount } from '../hooks/useNavigationCounts';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, priority: 'P0' },
-  { id: 'applicants', label: 'Applicants', icon: Users, priority: 'P0', badge: 12 },
+  { id: 'applicants', label: 'Applicants', icon: Users, priority: 'P0', badgeKey: 'pending_applicants' },
   { id: 'companies', label: 'Companies', icon: Building2, priority: 'P0' },
-  { id: 'screening', label: 'Screening', icon: Shield, priority: 'P0', badge: 3 },
-  { id: 'cases', label: 'Cases', icon: FolderKanban, priority: 'P0', badge: 5 },
+  { id: 'screening', label: 'Screening', icon: Shield, priority: 'P0', badgeKey: 'unresolved_hits' },
+  { id: 'cases', label: 'Cases', icon: FolderKanban, priority: 'P0', badgeKey: 'open_cases' },
   { id: 'integrations', label: 'Integrations', icon: Plug, priority: 'P0' },
   { divider: true },
   { id: 'device-intel', label: 'Device Intelligence', icon: Fingerprint, priority: 'P1', beta: true },
@@ -45,8 +47,12 @@ export default function AppShell({ children, currentPage, onNavigate, user, onLo
   const [darkMode, setDarkMode] = useState(true);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const userMenuRef = useRef(null);
   const userMenuButtonRef = useRef(null);
+
+  // Fetch real-time navigation badge counts
+  const { data: navCounts } = useNavigationCounts();
 
   // Get user display info
   const userName = user?.name || user?.email || 'User';
@@ -87,17 +93,23 @@ export default function AppShell({ children, currentPage, onNavigate, user, onLo
     };
   }, [userMenuOpen]);
 
-  // Close dropdown on Escape key
+  // Close dropdown on Escape key and handle Cmd+K for search
   useEffect(() => {
-    function handleEscapeKey(event) {
+    function handleKeyDown(event) {
       if (event.key === 'Escape') {
         setUserMenuOpen(false);
         setAiPanelOpen(false);
+        setSearchOpen(false);
+      }
+      // Cmd+K or Ctrl+K to open search
+      if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+        event.preventDefault();
+        setSearchOpen(true);
       }
     }
 
-    document.addEventListener('keydown', handleEscapeKey);
-    return () => document.removeEventListener('keydown', handleEscapeKey);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   // Handle keyboard navigation in dropdown
@@ -674,10 +686,17 @@ export default function AppShell({ children, currentPage, onNavigate, user, onLo
         </div>
         
         <div className="nav-section">
-          {navItems.map((item, idx) => (
-            item.divider ? (
-              <div key={idx} className="nav-divider" />
-            ) : (
+          {navItems.map((item, idx) => {
+            if (item.divider) {
+              return <div key={idx} className="nav-divider" />;
+            }
+
+            // Get dynamic badge count if badgeKey is specified
+            const badgeCount = item.badgeKey && navCounts
+              ? formatBadgeCount(navCounts[item.badgeKey])
+              : null;
+
+            return (
               <div
                 key={item.id}
                 className={`nav-item ${currentPage === item.id ? 'active' : ''}`}
@@ -686,22 +705,26 @@ export default function AppShell({ children, currentPage, onNavigate, user, onLo
               >
                 <item.icon className="nav-icon" />
                 {!collapsed && <span className="nav-label">{item.label}</span>}
-                {!collapsed && item.badge && <span className="nav-badge">{item.badge}</span>}
+                {!collapsed && badgeCount !== null && badgeCount > 0 && (
+                  <span className="nav-badge">{badgeCount}</span>
+                )}
                 {!collapsed && item.beta && <span className="nav-beta">Beta</span>}
               </div>
-            )
-          ))}
+            );
+          })}
         </div>
       </nav>
       
       <div className="main-wrapper">
         <header className="top-bar">
-          <div className="search-bar">
+          <div className="search-bar" onClick={() => setSearchOpen(true)} style={{ cursor: 'pointer' }}>
             <Search className="search-icon" />
-            <input 
-              type="text" 
-              className="search-input" 
-              placeholder="Search applicants, companies, cases..." 
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Search applicants, companies, cases..."
+              readOnly
+              style={{ cursor: 'pointer' }}
             />
             <span className="search-shortcut">⌘K</span>
           </div>
@@ -827,16 +850,16 @@ export default function AppShell({ children, currentPage, onNavigate, user, onLo
           </div>
           <button className="icon-btn" onClick={() => setAiPanelOpen(false)}>×</button>
         </div>
-        
+
         <div className="ai-panel-content">
           <div className="ai-suggestion">
             <div className="ai-suggestion-label">Quick Actions</div>
             <div className="ai-suggestion-text">
-              You have 3 applicants pending review with high-confidence matches. 
+              You have 3 applicants pending review with high-confidence matches.
               Would you like me to prepare a summary for batch review?
             </div>
           </div>
-          
+
           <div className="ai-suggestion">
             <div className="ai-suggestion-label">Risk Alert</div>
             <div className="ai-suggestion-text">
@@ -845,14 +868,16 @@ export default function AppShell({ children, currentPage, onNavigate, user, onLo
             </div>
           </div>
         </div>
-        
+
         <div className="ai-panel-input">
-          <textarea 
-            className="ai-input" 
+          <textarea
+            className="ai-input"
             placeholder="Ask me anything about your compliance data..."
           />
         </div>
       </aside>
+
+      <SearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }

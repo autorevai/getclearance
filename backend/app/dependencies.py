@@ -13,7 +13,7 @@ Dependencies provide:
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, Security, status
+from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -138,38 +138,84 @@ def get_signing_key(jwks: dict, kid: str) -> str:
     )
 
 
+def _get_permissions_for_role(role: str) -> list[str]:
+    """Get default permissions for a role (used for dev tokens)."""
+    permissions_by_role = {
+        "admin": [
+            "read:applicants", "write:applicants", "delete:applicants",
+            "read:documents", "write:documents",
+            "read:screening", "write:screening",
+            "read:cases", "write:cases",
+            "read:settings", "write:settings",
+            "admin:*",
+        ],
+        "reviewer": [
+            "read:applicants", "write:applicants",
+            "read:documents", "write:documents",
+            "read:screening", "write:screening",
+            "read:cases", "write:cases",
+        ],
+        "analyst": [
+            "read:applicants", "read:documents",
+            "read:screening", "read:cases", "write:cases",
+        ],
+        "viewer": [
+            "read:applicants", "read:documents",
+            "read:screening", "read:cases",
+        ],
+    }
+    return permissions_by_role.get(role, permissions_by_role["viewer"])
+
+
 async def verify_token(
     credentials: Annotated[HTTPAuthorizationCredentials, Security(security)],
 ) -> TokenPayload:
     """
     Verify and decode JWT token from Auth0.
-    
+
     Args:
         credentials: Bearer token from Authorization header
-    
+
     Returns:
         TokenPayload: Decoded token claims
-    
+
     Raises:
         HTTPException: If token is invalid or expired
+
+    Note:
+        In development mode without Auth0 configured, use the dev token generator
+        script (scripts/generate_dev_token.py) to create valid test tokens.
     """
     token = credentials.credentials
-    
-    # Skip validation in development if no Auth0 configured
+
+    # In development without Auth0, allow dev tokens (prefixed with "dev_")
     if settings.is_development() and not settings.auth0_domain:
-        # Return mock payload for development
-        return TokenPayload(
-            sub="dev-user-123",
-            aud=settings.auth0_audience,
-            iss=settings.auth0_issuer,
-            exp=9999999999,
-            iat=0,
-            tenant_id="00000000-0000-0000-0000-000000000001",
-            email="dev@getclearance.local",
-            role="admin",
-            permissions=["read:applicants", "write:applicants", "admin:*"],
+        if token.startswith("dev_"):
+            # Parse dev token format: dev_{user_id}_{tenant_id}_{role}
+            # Example: dev_user123_00000000-0000-0000-0000-000000000001_admin
+            try:
+                parts = token.split("_", 3)  # Split into max 4 parts
+                if len(parts) >= 4:
+                    _, user_id, tenant_id, role = parts[0], parts[1], parts[2], parts[3]
+                    return TokenPayload(
+                        sub=f"dev-{user_id}",
+                        aud=settings.auth0_audience or "getclearance-api",
+                        iss=settings.auth0_issuer or "https://dev.getclearance.local/",
+                        exp=9999999999,
+                        iat=0,
+                        tenant_id=tenant_id,
+                        email=f"{user_id}@getclearance.local",
+                        role=role,
+                        permissions=_get_permissions_for_role(role),
+                    )
+            except Exception:
+                pass  # Fall through to error
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid dev token format. Use: dev_{user_id}_{tenant_id}_{role}",
         )
-    
+
     try:
         # Get unverified header to find key ID
         unverified_header = jwt.get_unverified_header(token)
@@ -404,3 +450,48 @@ def require_role(*roles: str):
 # Use these in route handlers for cleaner code
 AuthenticatedUser = Annotated[CurrentUser, Depends(get_current_user)]
 TenantDB = Annotated[AsyncSession, Depends(get_tenant_db)]
+
+
+# ===========================================
+# REQUEST CONTEXT FOR AUDIT LOGGING
+# ===========================================
+
+class RequestContext(BaseModel):
+    """Request metadata for audit logging."""
+    ip_address: str | None = None
+    user_agent: str | None = None
+
+
+async def get_request_context(request: Request) -> RequestContext:
+    """
+    Extract request metadata for audit logging.
+
+    Captures:
+    - Client IP address (handles proxies via X-Forwarded-For)
+    - User agent string
+
+    Usage:
+        @router.post("/items")
+        async def create_item(
+            ctx: RequestContext = Depends(get_request_context),
+        ):
+            await record_audit_log(..., ip_address=ctx.ip_address)
+    """
+    # Try to get real IP from proxy headers first
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        # X-Forwarded-For can contain multiple IPs; first is the client
+        ip_address = forwarded_for.split(",")[0].strip()
+    elif request.client:
+        ip_address = request.client.host
+    else:
+        ip_address = None
+
+    return RequestContext(
+        ip_address=ip_address,
+        user_agent=request.headers.get("user-agent"),
+    )
+
+
+# Type alias for cleaner signatures
+AuditContext = Annotated[RequestContext, Depends(get_request_context)]

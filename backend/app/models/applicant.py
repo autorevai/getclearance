@@ -2,14 +2,20 @@
 Get Clearance - Applicant Models
 =================================
 KYC applicant and verification step models.
+
+PII Fields Encryption:
+- email, phone, first_name, last_name use EncryptedString type
+- These fields are encrypted at application level using Fernet (AES-128-CBC)
+- email_hash provides a searchable SHA-256 hash for exact lookups
 """
 
+import hashlib
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import (
-    String, Date, DateTime, Integer, Text, 
+    String, Date, DateTime, Integer, Text,
     ForeignKey, Index, ARRAY
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB, INET
@@ -17,6 +23,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.base import UUIDMixin, TimestampMixin, TenantMixin
+from app.models.types import EncryptedString
 
 if TYPE_CHECKING:
     from app.models.tenant import Tenant, User
@@ -35,7 +42,7 @@ class Applicant(Base, UUIDMixin, TimestampMixin):
     __table_args__ = (
         Index("idx_applicants_tenant_external", "tenant_id", "external_id", unique=True),
         Index("idx_applicants_tenant_status", "tenant_id", "status"),
-        Index("idx_applicants_tenant_email", "tenant_id", "email"),
+        Index("idx_applicants_tenant_email_hash", "tenant_id", "email_hash"),
         Index("idx_applicants_tenant_risk", "tenant_id", "risk_score"),
         Index("idx_applicants_sla", "tenant_id", "sla_due_at",
               postgresql_where="status IN ('pending', 'in_progress', 'review')"),
@@ -51,17 +58,22 @@ class Applicant(Base, UUIDMixin, TimestampMixin):
     
     # Customer reference
     external_id: Mapped[str | None] = mapped_column(String(255))
-    
-    # Personal info (encrypted at rest via PostgreSQL)
-    email: Mapped[str | None] = mapped_column(String(255))
-    phone: Mapped[str | None] = mapped_column(String(50))
-    first_name: Mapped[str | None] = mapped_column(String(255))
-    last_name: Mapped[str | None] = mapped_column(String(255))
+
+    # Personal info (ENCRYPTED at application level via Fernet/AES-128-CBC)
+    # Note: Encrypted values are longer than plaintext, hence larger column sizes
+    email: Mapped[str | None] = mapped_column(EncryptedString(512))
+    email_hash: Mapped[str | None] = mapped_column(String(64))  # SHA-256 for lookups
+    phone: Mapped[str | None] = mapped_column(EncryptedString(256))
+    first_name: Mapped[str | None] = mapped_column(EncryptedString(512))
+    last_name: Mapped[str | None] = mapped_column(EncryptedString(512))
     date_of_birth: Mapped[date | None] = mapped_column(Date)
+
+    # Non-PII fields - not encrypted
     nationality: Mapped[str | None] = mapped_column(String(3))  # ISO 3166-1 alpha-3
     country_of_residence: Mapped[str | None] = mapped_column(String(3))
     address: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     # address: {street, city, state, postal_code, country}
+    # Note: Consider encrypting address if storing full street addresses
     
     # Workflow state
     workflow_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True))
@@ -89,6 +101,24 @@ class Applicant(Base, UUIDMixin, TimestampMixin):
         ForeignKey("users.id", ondelete="SET NULL"),
     )
     sla_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # GDPR & Compliance
+    legal_hold: Mapped[bool] = mapped_column(default=False)
+    legal_hold_reason: Mapped[str | None] = mapped_column(String(500))
+    legal_hold_set_by: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+    )
+    legal_hold_set_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Consent tracking (GDPR Article 6/7)
+    consent_given: Mapped[bool] = mapped_column(default=False)
+    consent_given_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    consent_ip_address: Mapped[str | None] = mapped_column(String(45))  # IPv4 or IPv6
+    consent_withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Data retention
+    retention_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     
     # Relationships
     tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="applicants")
@@ -128,6 +158,40 @@ class Applicant(Base, UUIDMixin, TimestampMixin):
     def has_hits(self) -> bool:
         """Check if applicant has any screening hits."""
         return "sanctions" in self.flags or "pep" in self.flags
+
+    def set_email(self, email: str | None) -> None:
+        """
+        Set email and update the searchable hash.
+
+        Use this method instead of directly setting self.email
+        to ensure the hash stays in sync.
+
+        Args:
+            email: Email address to set, or None to clear
+        """
+        self.email = email
+        if email:
+            # Store lowercase hash for case-insensitive lookups
+            self.email_hash = hashlib.sha256(email.lower().encode()).hexdigest()
+        else:
+            self.email_hash = None
+
+    @staticmethod
+    def hash_email(email: str) -> str:
+        """
+        Generate SHA-256 hash of email for lookups.
+
+        Use this for querying by email:
+            email_hash = Applicant.hash_email("user@example.com")
+            query.where(Applicant.email_hash == email_hash)
+
+        Args:
+            email: Email address to hash
+
+        Returns:
+            SHA-256 hex digest of lowercase email
+        """
+        return hashlib.sha256(email.lower().encode()).hexdigest()
 
 
 class ApplicantStep(Base, UUIDMixin, TimestampMixin):

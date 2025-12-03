@@ -193,3 +193,64 @@ class StepComplete(BaseModel):
 class StepResubmit(BaseModel):
     """Request step resubmission."""
     message: str = Field(..., max_length=1000)
+
+
+# ===========================================
+# GDPR COMPLIANCE SCHEMAS
+# ===========================================
+
+class ConsentRequest(BaseModel):
+    """Record consent for data processing (GDPR Article 6/7)."""
+    consent: bool = Field(..., description="Whether consent is given or withdrawn")
+    purpose: str | None = Field(None, max_length=500, description="Purpose of data processing")
+
+
+class ConsentResponse(BaseModel):
+    """Consent recording response."""
+    status: str
+    consent_given: bool
+    consent_given_at: datetime | None
+    applicant_id: UUID
+
+
+class LegalHoldRequest(BaseModel):
+    """Set legal hold on applicant data."""
+    reason: str = Field(..., min_length=1, max_length=500)
+
+
+class LegalHoldResponse(BaseModel):
+    """Legal hold response."""
+    status: str
+    legal_hold: bool
+    legal_hold_reason: str | None
+    legal_hold_set_at: datetime | None
+    applicant_id: UUID
+
+
+class GDPRExportMetadata(BaseModel):
+    """Metadata included in GDPR data export."""
+    exported_at: datetime
+    exported_by: str
+    export_format: str
+    gdpr_articles: list[str]
+    applicant_id: UUID
+
+
+class GDPRExportResponse(BaseModel):
+    """GDPR data export response (JSON format)."""
+    personal_information: dict[str, Any]
+    verification_status: dict[str, Any]
+    documents: list[dict[str, Any]]
+    screening_results: list[dict[str, Any]]
+    cases: list[dict[str, Any]]
+    audit_trail: list[dict[str, Any]]
+    ai_assessments: list[dict[str, Any]]
+    export_metadata: GDPRExportMetadata
+
+
+class GDPRDeleteResponse(BaseModel):
+    """GDPR data deletion response."""
+    status: str
+    applicant_id: UUID
+    deleted_at: datetime
+    deleted_data: list[str]  # List of data categories deleted

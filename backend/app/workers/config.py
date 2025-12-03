@@ -145,6 +145,9 @@ class WorkerSettings:
         "app.workers.webhook_worker.deliver_webhook",
         "app.workers.webhook_worker.process_pending_webhooks",
         "app.workers.webhook_worker.retry_failed_webhook",
+        "app.workers.monitoring_worker.run_monitoring_batch",
+        "app.workers.monitoring_worker.run_single_applicant_monitoring",
+        "app.workers.monitoring_worker.get_monitoring_status",
     ]
 
     # Job configuration
@@ -166,12 +169,12 @@ class WorkerSettings:
             "app.workers.webhook_worker.process_pending_webhooks",
             minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55},
         ),
-        # Uncomment for ongoing monitoring
-        # cron(
-        #     "app.workers.screening_worker.run_ongoing_monitoring",
-        #     hour={0, 12},  # Run at midnight and noon
-        #     minute=0,
-        # ),
+        # Run ongoing AML monitoring daily at 2 AM UTC
+        cron(
+            "app.workers.monitoring_worker.run_monitoring_batch",
+            hour={2},
+            minute=0,
+        ),
     ]
 
 

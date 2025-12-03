@@ -73,6 +73,17 @@ factory-boy==3.3.1        # Test fixtures
 faker==30.8.0             # Fake data generation
 
 # ===========================================
+# SECURITY
+# ===========================================
+slowapi==0.1.9              # Rate limiting for FastAPI
+cryptography==42.0.8        # PII encryption (Fernet/AES-128-CBC)
+
+# ===========================================
+# MONITORING & ALERTING
+# ===========================================
+sentry-sdk[fastapi]==1.38.0   # Error tracking with FastAPI integration
+
+# ===========================================
 # CODE QUALITY
 # ===========================================
 black==24.10.0

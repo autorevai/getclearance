@@ -6,6 +6,7 @@ import {
   Download,
   Plus,
   ChevronDown,
+  ChevronUp,
   MoreHorizontal,
   CheckCircle2,
   XCircle,
@@ -22,9 +23,10 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  Loader2
+  Loader2,
+  FolderKanban
 } from 'lucide-react';
-import { useApplicants, useBatchReviewApplicants } from '../hooks/useApplicants';
+import { useApplicants, useBatchReviewApplicants, useExportApplicants } from '../hooks/useApplicants';
 import { useDebounce } from '../hooks/useDebounce';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut';
@@ -124,14 +126,20 @@ export default function ApplicantsList() {
     status: searchParams.get('status') || null,
     risk_level: searchParams.get('risk_level') || null,
     search: searchParams.get('search') || '',
+    sort: searchParams.get('sort') || 'created_at',
+    order: searchParams.get('order') || 'desc',
     limit: parseInt(searchParams.get('limit') || '50', 10),
     offset: parseInt(searchParams.get('offset') || '0', 10),
   });
 
   const [selectedIds, setSelectedIds] = useState([]);
+  const [lastSelectedId, setLastSelectedId] = useState(null); // For shift+click
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState(null);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1); // For keyboard nav in dropdowns
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, action: null });
+  const [rowActionsOpen, setRowActionsOpen] = useState(null); // ID of applicant with open dropdown
+  const createModalTriggerRef = useRef(null); // For focus return
 
   // Update filters when debounced search changes
   useEffect(() => {
@@ -148,19 +156,27 @@ export default function ApplicantsList() {
   // Batch review mutation
   const batchReviewMutation = useBatchReviewApplicants();
 
+  // Export mutation
+  const exportMutation = useExportApplicants();
+
   // Sync filters to URL params
   useEffect(() => {
     const params = new URLSearchParams();
     if (filters.status) params.set('status', filters.status);
     if (filters.risk_level) params.set('risk_level', filters.risk_level);
     if (filters.search) params.set('search', filters.search);
+    if (filters.sort && filters.sort !== 'created_at') params.set('sort', filters.sort);
+    if (filters.order && filters.order !== 'desc') params.set('order', filters.order);
     if (filters.offset > 0) params.set('offset', filters.offset.toString());
     if (filters.limit !== 50) params.set('limit', filters.limit.toString());
     setSearchParams(params, { replace: true });
   }, [filters, setSearchParams]);
 
   // Click outside handlers for dropdowns
-  const closeDropdowns = useCallback(() => setActiveDropdown(null), []);
+  const closeDropdowns = useCallback(() => {
+    setActiveDropdown(null);
+    setHighlightedIndex(-1);
+  }, []);
   useClickOutside(statusDropdownRef, closeDropdowns, activeDropdown === 'status');
   useClickOutside(riskDropdownRef, closeDropdowns, activeDropdown === 'risk');
 
@@ -168,6 +184,71 @@ export default function ApplicantsList() {
   useKeyboardShortcut(['meta', 'k'], () => searchInputRef.current?.focus());
   useKeyboardShortcut(['ctrl', 'k'], () => searchInputRef.current?.focus());
   useKeyboardShortcut('Escape', closeDropdowns, { enabled: !!activeDropdown });
+
+  // Get options for current dropdown
+  const getDropdownOptions = useCallback(() => {
+    if (activeDropdown === 'status') {
+      return [null, ...Object.keys(statusConfig)];
+    }
+    if (activeDropdown === 'risk') {
+      return [null, 'low', 'medium', 'high'];
+    }
+    return [];
+  }, [activeDropdown]);
+
+  // Keyboard navigation for dropdowns
+  const handleDropdownKeyDown = useCallback((e) => {
+    if (!activeDropdown) return;
+
+    const options = getDropdownOptions();
+    const maxIndex = options.length - 1;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlightedIndex(prev => Math.min(prev + 1, maxIndex));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedIndex(prev => Math.max(prev - 1, 0));
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (highlightedIndex >= 0) {
+          const selectedValue = options[highlightedIndex];
+          if (activeDropdown === 'status') {
+            updateFilter('status', selectedValue);
+          } else if (activeDropdown === 'risk') {
+            updateFilter('risk_level', selectedValue);
+          }
+          closeDropdowns();
+        }
+        break;
+      case 'Home':
+        e.preventDefault();
+        setHighlightedIndex(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        setHighlightedIndex(maxIndex);
+        break;
+      default:
+        break;
+    }
+  }, [activeDropdown, highlightedIndex, getDropdownOptions, updateFilter, closeDropdowns]);
+
+  // Reset highlighted index when dropdown changes
+  useEffect(() => {
+    if (activeDropdown) {
+      // Find current selected index
+      const options = activeDropdown === 'status'
+        ? [null, ...Object.keys(statusConfig)]
+        : [null, 'low', 'medium', 'high'];
+      const currentValue = activeDropdown === 'status' ? filters.status : filters.risk_level;
+      const currentIndex = options.indexOf(currentValue);
+      setHighlightedIndex(currentIndex >= 0 ? currentIndex : 0);
+    }
+  }, [activeDropdown, filters.status, filters.risk_level]);
 
   const applicants = data?.items || [];
   const total = data?.total || 0;
@@ -189,10 +270,86 @@ export default function ApplicantsList() {
     }));
   };
 
+  // Sorting handler
+  const handleSort = (field) => {
+    setFilters(prev => ({
+      ...prev,
+      sort: field,
+      order: prev.sort === field && prev.order === 'asc' ? 'desc' : 'asc',
+      offset: 0,
+    }));
+  };
+
+  // Get sort icon for column
+  const getSortIcon = (field) => {
+    if (filters.sort !== field) return <ArrowUpDown size={12} aria-hidden="true" />;
+    return filters.order === 'asc'
+      ? <ChevronUp size={12} aria-hidden="true" />
+      : <ChevronDown size={12} aria-hidden="true" />;
+  };
+
+  // CSV Export handler
+  const handleExport = async () => {
+    try {
+      const exportFilters = {
+        ...filters,
+        ids: selectedIds.length > 0 ? selectedIds : undefined,
+      };
+      delete exportFilters.limit;
+      delete exportFilters.offset;
+
+      await exportMutation.mutateAsync(exportFilters);
+      toast.success(
+        selectedIds.length > 0
+          ? `Exported ${selectedIds.length} selected applicants`
+          : 'Exported all applicants matching current filters'
+      );
+    } catch (err) {
+      toast.error(`Failed to export: ${err.message}`, {
+        action: {
+          label: 'Retry',
+          onClick: handleExport,
+        },
+      });
+    }
+  };
+
+  // Shift+click range selection
+  const handleCheckboxClick = (e, applicantId) => {
+    e.stopPropagation();
+
+    if (e.shiftKey && lastSelectedId && lastSelectedId !== applicantId) {
+      // Find indices
+      const ids = applicants.map(a => a.id);
+      const lastIdx = ids.indexOf(lastSelectedId);
+      const currentIdx = ids.indexOf(applicantId);
+
+      if (lastIdx !== -1 && currentIdx !== -1) {
+        const start = Math.min(lastIdx, currentIdx);
+        const end = Math.max(lastIdx, currentIdx);
+        const rangeIds = ids.slice(start, end + 1);
+
+        setSelectedIds(prev => {
+          const newSet = new Set(prev);
+          rangeIds.forEach(id => newSet.add(id));
+          return Array.from(newSet);
+        });
+        return;
+      }
+    }
+
+    // Regular toggle
+    setSelectedIds(prev =>
+      prev.includes(applicantId) ? prev.filter(i => i !== applicantId) : [...prev, applicantId]
+    );
+    setLastSelectedId(applicantId);
+  };
+
   const toggleSelect = (id) => {
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
+    setLastSelectedId(id);
   };
 
   const toggleSelectAll = () => {
@@ -225,6 +382,7 @@ export default function ApplicantsList() {
 
   const executeBatchAction = async () => {
     const action = confirmDialog.action;
+    const affectedIds = [...selectedIds]; // Copy for undo
     setConfirmDialog({ isOpen: false, action: null });
 
     try {
@@ -234,15 +392,50 @@ export default function ApplicantsList() {
         notes: `Batch ${action}d via dashboard`,
       });
 
+      const reverseAction = action === 'approve' ? 'reject' : 'approve';
+
       if (result.failed === 0) {
-        toast.success(`Successfully ${action}d ${result.succeeded} applicant${result.succeeded > 1 ? 's' : ''}`);
+        toast.success(
+          `Successfully ${action}d ${result.succeeded} applicant${result.succeeded > 1 ? 's' : ''}`,
+          {
+            duration: 10000,
+            action: {
+              label: 'Undo',
+              onClick: async () => {
+                try {
+                  await batchReviewMutation.mutateAsync({
+                    ids: affectedIds,
+                    decision: reverseAction,
+                    notes: `Batch undo: reverted ${action} via dashboard`,
+                  });
+                  toast.info(`Undone - ${affectedIds.length} applicant${affectedIds.length > 1 ? 's' : ''} reverted`);
+                } catch (undoErr) {
+                  toast.error(`Failed to undo: ${undoErr.message}`);
+                }
+              },
+            },
+          }
+        );
       } else {
         toast.warning(`${action === 'approve' ? 'Approved' : 'Rejected'} ${result.succeeded} of ${result.total} applicants. ${result.failed} failed.`);
       }
 
       setSelectedIds([]);
     } catch (err) {
-      toast.error(`Failed to ${action} applicants: ${err.message}`);
+      toast.error(`Failed to ${action} applicants: ${err.message}`, {
+        action: {
+          label: 'Retry',
+          onClick: () => {
+            setSelectedIds(affectedIds);
+            setConfirmDialog({
+              isOpen: true,
+              action,
+              title: action === 'approve' ? 'Approve Selected Applicants' : 'Reject Selected Applicants',
+              message: `Retry: ${action} ${affectedIds.length} applicant${affectedIds.length > 1 ? 's' : ''}?`,
+            });
+          },
+        },
+      });
     }
   };
 
@@ -467,6 +660,16 @@ export default function ApplicantsList() {
         .filter-option.active {
           background: var(--accent-glow);
           color: var(--accent-primary);
+        }
+
+        .filter-option.highlighted {
+          background: var(--bg-hover);
+          outline: 2px solid var(--accent-primary);
+          outline-offset: -2px;
+        }
+
+        .filter-option.active.highlighted {
+          background: var(--accent-glow);
         }
 
         .toolbar-divider {
@@ -748,6 +951,59 @@ export default function ApplicantsList() {
           color: var(--text-primary);
         }
 
+        .row-actions-wrapper {
+          position: relative;
+        }
+
+        .row-actions-dropdown {
+          position: absolute;
+          top: 100%;
+          right: 0;
+          margin-top: 4px;
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          padding: 6px;
+          min-width: 180px;
+          z-index: 100;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .row-action-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 12px;
+          border-radius: 6px;
+          font-size: 13px;
+          color: var(--text-secondary);
+          cursor: pointer;
+          transition: all 0.15s;
+          background: none;
+          border: none;
+          width: 100%;
+          text-align: left;
+        }
+
+        .row-action-item:hover {
+          background: var(--bg-hover);
+          color: var(--text-primary);
+        }
+
+        .row-action-item.danger {
+          color: var(--danger);
+        }
+
+        .row-action-item.danger:hover {
+          background: rgba(239, 68, 68, 0.1);
+        }
+
+        .row-action-divider {
+          height: 1px;
+          background: var(--border-color);
+          margin: 6px 0;
+        }
+
         /* Batch Actions Bar */
         .batch-actions {
           position: fixed;
@@ -854,15 +1110,36 @@ export default function ApplicantsList() {
         </div>
 
         <div className="list-actions">
-          <button className="btn btn-secondary" aria-label="Export applicants to CSV">
-            <Download size={16} />
-            Export CSV
-          </button>
-          <button className="btn btn-ai" aria-label="Run AI batch review on applicants">
-            <Sparkles size={16} />
-            AI Batch Review
+          <button
+            className="btn btn-secondary"
+            aria-label="Export applicants to CSV"
+            onClick={handleExport}
+            disabled={exportMutation.isPending}
+          >
+            {exportMutation.isPending ? (
+              <Loader2 size={16} className="spinner" aria-hidden="true" />
+            ) : (
+              <Download size={16} aria-hidden="true" />
+            )}
+            {exportMutation.isPending ? 'Exporting...' : 'Export CSV'}
           </button>
           <button
+            className="btn btn-ai"
+            aria-label="Run AI batch review on applicants"
+            onClick={() => {
+              if (selectedIds.length === 0) {
+                toast.warning('Select applicants first to run AI batch review');
+                return;
+              }
+              navigate(`/applicants?batch_review=true&ids=${selectedIds.join(',')}`);
+              toast.info(`AI Batch Review initiated for ${selectedIds.length} applicant${selectedIds.length > 1 ? 's' : ''}`);
+            }}
+          >
+            <Sparkles size={16} />
+            AI Batch Review {selectedIds.length > 0 && `(${selectedIds.length})`}
+          </button>
+          <button
+            ref={createModalTriggerRef}
             className="btn btn-primary"
             onClick={() => setShowCreateModal(true)}
             aria-label="Create new applicant"
@@ -895,9 +1172,10 @@ export default function ApplicantsList() {
           <button
             className={`filter-chip ${filters.status ? 'active' : ''}`}
             onClick={() => setActiveDropdown(activeDropdown === 'status' ? null : 'status')}
+            onKeyDown={handleDropdownKeyDown}
             aria-expanded={activeDropdown === 'status'}
             aria-haspopup="listbox"
-            aria-label="Filter by review status"
+            aria-label="Filter by review status. Use arrow keys to navigate."
           >
             <Filter size={14} aria-hidden="true" />
             {filters.status ? statusConfig[filters.status]?.label || filters.status : 'Review Status'}
@@ -912,20 +1190,22 @@ export default function ApplicantsList() {
             <ChevronDown size={14} aria-hidden="true" />
           </button>
           {activeDropdown === 'status' && (
-            <div className="filter-dropdown" role="listbox" aria-label="Status options">
+            <div className="filter-dropdown" role="listbox" aria-label="Status options" aria-activedescendant={highlightedIndex >= 0 ? `status-option-${highlightedIndex}` : undefined}>
               <div
-                className={`filter-option ${!filters.status ? 'active' : ''}`}
-                onClick={() => { updateFilter('status', null); setActiveDropdown(null); }}
+                id="status-option-0"
+                className={`filter-option ${!filters.status ? 'active' : ''} ${highlightedIndex === 0 ? 'highlighted' : ''}`}
+                onClick={() => { updateFilter('status', null); closeDropdowns(); }}
                 role="option"
                 aria-selected={!filters.status}
               >
                 All Statuses
               </div>
-              {Object.entries(statusConfig).map(([key, config]) => (
+              {Object.entries(statusConfig).map(([key, config], index) => (
                 <div
                   key={key}
-                  className={`filter-option ${filters.status === key ? 'active' : ''}`}
-                  onClick={() => { updateFilter('status', key); setActiveDropdown(null); }}
+                  id={`status-option-${index + 1}`}
+                  className={`filter-option ${filters.status === key ? 'active' : ''} ${highlightedIndex === index + 1 ? 'highlighted' : ''}`}
+                  onClick={() => { updateFilter('status', key); closeDropdowns(); }}
                   role="option"
                   aria-selected={filters.status === key}
                 >
@@ -942,9 +1222,10 @@ export default function ApplicantsList() {
           <button
             className={`filter-chip ${filters.risk_level ? 'active' : ''}`}
             onClick={() => setActiveDropdown(activeDropdown === 'risk' ? null : 'risk')}
+            onKeyDown={handleDropdownKeyDown}
             aria-expanded={activeDropdown === 'risk'}
             aria-haspopup="listbox"
-            aria-label="Filter by risk level"
+            aria-label="Filter by risk level. Use arrow keys to navigate."
           >
             <Shield size={14} aria-hidden="true" />
             {filters.risk_level ? `${filters.risk_level.charAt(0).toUpperCase() + filters.risk_level.slice(1)} Risk` : 'Risk Level'}
@@ -959,20 +1240,22 @@ export default function ApplicantsList() {
             <ChevronDown size={14} aria-hidden="true" />
           </button>
           {activeDropdown === 'risk' && (
-            <div className="filter-dropdown" role="listbox" aria-label="Risk level options">
+            <div className="filter-dropdown" role="listbox" aria-label="Risk level options" aria-activedescendant={highlightedIndex >= 0 ? `risk-option-${highlightedIndex}` : undefined}>
               <div
-                className={`filter-option ${!filters.risk_level ? 'active' : ''}`}
-                onClick={() => { updateFilter('risk_level', null); setActiveDropdown(null); }}
+                id="risk-option-0"
+                className={`filter-option ${!filters.risk_level ? 'active' : ''} ${highlightedIndex === 0 ? 'highlighted' : ''}`}
+                onClick={() => { updateFilter('risk_level', null); closeDropdowns(); }}
                 role="option"
                 aria-selected={!filters.risk_level}
               >
                 All Risk Levels
               </div>
-              {['low', 'medium', 'high'].map(level => (
+              {['low', 'medium', 'high'].map((level, index) => (
                 <div
                   key={level}
-                  className={`filter-option ${filters.risk_level === level ? 'active' : ''}`}
-                  onClick={() => { updateFilter('risk_level', level); setActiveDropdown(null); }}
+                  id={`risk-option-${index + 1}`}
+                  className={`filter-option ${filters.risk_level === level ? 'active' : ''} ${highlightedIndex === index + 1 ? 'highlighted' : ''}`}
+                  onClick={() => { updateFilter('risk_level', level); closeDropdowns(); }}
                   role="option"
                   aria-selected={filters.risk_level === level}
                 >
@@ -1039,30 +1322,46 @@ export default function ApplicantsList() {
                         {selectedIds.length === applicants.length && <CheckCircle2 size={12} color="white" aria-hidden="true" />}
                       </div>
                     </th>
-                    <th className="sortable">
+                    <th
+                      className={`sortable ${filters.sort === 'last_name' ? 'sorted' : ''}`}
+                      onClick={() => handleSort('last_name')}
+                      aria-sort={filters.sort === 'last_name' ? filters.order + 'ending' : 'none'}
+                    >
                       <div className="th-content">
                         Applicant
-                        <ArrowUpDown size={12} aria-hidden="true" />
+                        {getSortIcon('last_name')}
                       </div>
                     </th>
                     <th>Steps</th>
-                    <th className="sortable">
+                    <th
+                      className={`sortable ${filters.sort === 'review_status' ? 'sorted' : ''}`}
+                      onClick={() => handleSort('review_status')}
+                      aria-sort={filters.sort === 'review_status' ? filters.order + 'ending' : 'none'}
+                    >
                       <div className="th-content">
                         Status
-                        <ArrowUpDown size={12} aria-hidden="true" />
+                        {getSortIcon('review_status')}
                       </div>
                     </th>
                     <th>Flags</th>
-                    <th className="sortable">
+                    <th
+                      className={`sortable ${filters.sort === 'risk_score' ? 'sorted' : ''}`}
+                      onClick={() => handleSort('risk_score')}
+                      aria-sort={filters.sort === 'risk_score' ? filters.order + 'ending' : 'none'}
+                    >
                       <div className="th-content">
                         Risk
-                        <ArrowUpDown size={12} aria-hidden="true" />
+                        {getSortIcon('risk_score')}
                       </div>
                     </th>
-                    <th className="sortable">
+                    <th
+                      className={`sortable ${filters.sort === 'created_at' ? 'sorted' : ''}`}
+                      onClick={() => handleSort('created_at')}
+                      aria-sort={filters.sort === 'created_at' ? filters.order + 'ending' : 'none'}
+                    >
                       <div className="th-content">
                         Submitted
-                        <ArrowUpDown size={12} aria-hidden="true" />
+                        {getSortIcon('created_at')}
                       </div>
                     </th>
                     <th>Reviewer</th>
@@ -1090,13 +1389,13 @@ export default function ApplicantsList() {
                         className={selectedIds.includes(applicant.id) ? 'selected' : ''}
                         onClick={() => handleRowClick(applicant)}
                       >
-                        <td onClick={(e) => e.stopPropagation()}>
+                        <td>
                           <div
                             className={`checkbox ${selectedIds.includes(applicant.id) ? 'checked' : ''}`}
-                            onClick={() => toggleSelect(applicant.id)}
+                            onClick={(e) => handleCheckboxClick(e, applicant.id)}
                             role="checkbox"
                             aria-checked={selectedIds.includes(applicant.id)}
-                            aria-label={`Select ${displayName}`}
+                            aria-label={`Select ${displayName}. Hold Shift to select range.`}
                             tabIndex={0}
                             onKeyDown={(e) => e.key === 'Enter' && toggleSelect(applicant.id)}
                           >
@@ -1203,13 +1502,69 @@ export default function ApplicantsList() {
                             >
                               <Eye size={16} aria-hidden="true" />
                             </button>
-                            <button
-                              className="action-btn"
-                              title="More Actions"
-                              aria-label={`More actions for ${displayName}`}
-                            >
-                              <MoreHorizontal size={16} aria-hidden="true" />
-                            </button>
+                            <div className="row-actions-wrapper">
+                              <button
+                                className="action-btn"
+                                title="More Actions"
+                                aria-label={`More actions for ${displayName}`}
+                                onClick={() => setRowActionsOpen(rowActionsOpen === applicant.id ? null : applicant.id)}
+                              >
+                                <MoreHorizontal size={16} aria-hidden="true" />
+                              </button>
+                              {rowActionsOpen === applicant.id && (
+                                <div className="row-actions-dropdown">
+                                  <button
+                                    className="row-action-item"
+                                    onClick={() => { navigate(`/applicants/${applicant.id}`); setRowActionsOpen(null); }}
+                                  >
+                                    <Eye size={14} />
+                                    View Details
+                                  </button>
+                                  <button
+                                    className="row-action-item"
+                                    onClick={() => {
+                                      handleExport();
+                                      setRowActionsOpen(null);
+                                    }}
+                                  >
+                                    <Download size={14} />
+                                    Export PDF
+                                  </button>
+                                  <button
+                                    className="row-action-item"
+                                    onClick={() => {
+                                      navigate(`/screening?applicant_id=${applicant.id}`);
+                                      setRowActionsOpen(null);
+                                    }}
+                                  >
+                                    <Shield size={14} />
+                                    Run Screening
+                                  </button>
+                                  <button
+                                    className="row-action-item"
+                                    onClick={() => {
+                                      navigate(`/cases?create=true&applicant_id=${applicant.id}`);
+                                      setRowActionsOpen(null);
+                                    }}
+                                  >
+                                    <FolderKanban size={14} />
+                                    Create Case
+                                  </button>
+                                  <div className="row-action-divider" />
+                                  <button
+                                    className="row-action-item danger"
+                                    onClick={() => {
+                                      setSelectedIds([applicant.id]);
+                                      handleBatchReject();
+                                      setRowActionsOpen(null);
+                                    }}
+                                  >
+                                    <XCircle size={14} />
+                                    Reject
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </td>
                       </tr>
@@ -1317,6 +1672,7 @@ export default function ApplicantsList() {
         <CreateApplicantModal
           onClose={() => setShowCreateModal(false)}
           onSuccess={handleCreateSuccess}
+          triggerRef={createModalTriggerRef}
         />
       )}
 

@@ -144,10 +144,44 @@ class Settings(BaseSettings):
     aws_textract_timeout: int = Field(default=30)  # seconds per document
 
     # ===========================================
+    # SMARTY (Address Verification)
+    # ===========================================
+    smarty_auth_id: str = Field(default="", repr=False)
+    smarty_auth_token: str = Field(default="", repr=False)
+
+    # ===========================================
+    # IPQUALITYSCORE (Device Intelligence)
+    # ===========================================
+    ipqualityscore_api_key: str = Field(default="", repr=False)
+
+    # ===========================================
+    # STRIPE (Billing)
+    # ===========================================
+    stripe_secret_key: str = Field(default="", repr=False)
+    stripe_publishable_key: str = Field(default="")
+    stripe_webhook_secret: str = Field(default="", repr=False)
+    stripe_price_id_starter: str = Field(default="")  # Starter plan price ID
+    stripe_price_id_professional: str = Field(default="")  # Professional plan price ID
+    stripe_price_id_enterprise: str = Field(default="")  # Enterprise plan price ID
+
+    # ===========================================
     # SECURITY
     # ===========================================
     # Secret key for signing (generate with: openssl rand -hex 32)
     secret_key: str = Field(default="CHANGE-ME-IN-PRODUCTION", repr=False)
+
+    # PII Encryption (REQUIRED for production)
+    # Generate key with: openssl rand -hex 32
+    encryption_key: str = Field(
+        default="CHANGE-ME-GENERATE-WITH-OPENSSL-RAND-HEX-32",
+        repr=False,
+        description="Master key for PII encryption (use: openssl rand -hex 32)"
+    )
+    encryption_salt: str = Field(
+        default="getclearance-pii-salt-v1",
+        repr=False,
+        description="Salt for key derivation (change per environment)"
+    )
 
     # Rate limiting
     rate_limit_requests: int = Field(default=100)
@@ -165,6 +199,14 @@ class Settings(BaseSettings):
     def webhook_retry_delays_list(self) -> list[int]:
         """Parse webhook retry delays into list of integers."""
         return [int(d.strip()) for d in self.webhook_retry_delays.split(",")]
+
+    # ===========================================
+    # MONITORING & ALERTING
+    # ===========================================
+    # Sentry DSN for error tracking (get from sentry.io)
+    sentry_dsn: str = Field(default="", repr=False)
+    sentry_traces_sample_rate: float = Field(default=0.1, ge=0.0, le=1.0)  # 10% of requests
+    sentry_profiles_sample_rate: float = Field(default=0.1, ge=0.0, le=1.0)
 
     # ===========================================
     # FEATURE FLAGS

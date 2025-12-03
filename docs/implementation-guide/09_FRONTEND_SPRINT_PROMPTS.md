@@ -2250,7 +2250,35 @@ If unclear about API response format or existing Dashboard structure, ask first.
 
 ---
 
-## Sprint 9: Remaining Gaps & Placeholder Pages (Medium - 3-5 Days)
+## Sprint 9: Remaining Gaps & Placeholder Pages (Medium - 3-5 Days) ✅ COMPLETE
+
+### Status: COMPLETED (2025-12-02)
+
+**Implemented:**
+- `frontend/src/components/SearchModal.jsx` - Global search modal (Cmd+K)
+- `frontend/src/components/pages/ComingSoon.jsx` - Reusable placeholder template
+- `frontend/src/components/pages/*.jsx` - 8 placeholder pages (Companies, Integrations, DeviceIntel, ReusableKYC, Analytics, Settings, Billing, AuditLog)
+- `frontend/src/hooks/useGlobalSearch.js` - Search across applicants/cases
+- `frontend/src/hooks/useNavigationCounts.js` - Dynamic nav badge counts
+- Updated `AppShell.jsx` - Search modal integration, dynamic badges, Cmd+K shortcut
+- Updated `Dashboard.jsx` - Filter dropdowns, AI insight actions, activity click handlers
+- Updated `ApplicantsList.jsx` - AI Batch Review button, More Actions dropdown per row
+- Updated `ApplicantAssistant.jsx` - Language selector (9 languages), attach document button
+- Updated `App.jsx` - Routes for all placeholder pages
+
+**Features Completed:**
+- ✅ Global search modal opens with Cmd+K / Ctrl+K
+- ✅ Search across applicants and cases with debounced queries
+- ✅ Navigation badge counts fetched from real API (auto-refresh 60s)
+- ✅ 8 Coming Soon placeholder pages with planned features list
+- ✅ Dashboard filter buttons functional (Today/Week/Month/Quarter)
+- ✅ AI insight action buttons navigate to correct pages
+- ✅ Activity feed items clickable (navigate to applicant/case)
+- ✅ More Actions dropdown per applicant row (View, Export, Screen, Create Case, Reject)
+- ✅ Language selector in AI Assistant (EN, ES, FR, DE, PT, ZH, JA, KO, AR)
+- ✅ Attach document button in AI Assistant (file picker)
+
+---
 
 ### Why This Sprint?
 After completing Sprints 1-8, there are remaining gaps:
@@ -2938,9 +2966,9 @@ If unclear about which features should be placeholder vs functional, ask first.
 | Sprint 6 | Cases & AI | 4-5 days | Medium | ✅ Complete |
 | Sprint 7 | Polish & Real-time | 3-4 days | Medium | ✅ Complete |
 | Sprint 8 | Dashboard Integration | 2-3 days | High | ✅ Complete |
-| **Sprint 9** | **Remaining Gaps & Placeholder Pages** | **3-5 days** | **Medium** | 🔲 Pending |
+| **Sprint 9** | **Remaining Gaps & Placeholder Pages** | **3-5 days** | **Medium** | ✅ **COMPLETE** |
 
-**ALL CORE FRONTEND SPRINTS COMPLETE (0-8)! Sprint 9 addresses remaining gaps for 100% completion.**
+**ALL FRONTEND INTEGRATION SPRINTS COMPLETE (0-9)!** See `15_FEATURE_COMPLETION_SPRINTS.md` for Sprint 10-17 (placeholder → production).
 
 ### Sprint Dependencies Diagram
 ```
@@ -2952,12 +2980,11 @@ Sprint 1 (Auth) ✅ → Sprint 2 (API Layer) ✅ → Sprint 3 (Applicants) ✅ �
                                            ↘ Sprint 5 (Screening) ✅
                                            ↘ Sprint 6 (Cases & AI) ✅
                                                                    ↘ Sprint 7 (Polish) ✅
-                                           ↘ Sprint 8 (Dashboard) ✅ COMPLETE
+                                           ↘ Sprint 8 (Dashboard) ✅
+                                                                   ↘ Sprint 9 (Placeholders) ✅ COMPLETE
 ```
 
-**Parallel Work Possible:**
-- Sprints 4, 5, 6 can run in parallel after Sprint 3
-- Sprint 7 must wait for all others
+**All Sprints Complete!** Frontend integration work is done. Future sprints (10-17) will implement placeholder features.
 
 ---
 

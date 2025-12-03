@@ -82,7 +82,17 @@ class Document(Base, UUIDMixin, TimestampMixin):
     # Translation (if non-English)
     original_language: Mapped[str | None] = mapped_column(String(10))
     translated_text: Mapped[str | None] = mapped_column(Text)
-    
+
+    # Biometrics (face matching & liveness)
+    face_match_score: Mapped[float | None] = mapped_column(Numeric(5, 2))
+    # Face similarity score 0-100 when compared to selfie
+    liveness_score: Mapped[float | None] = mapped_column(Numeric(5, 2))
+    # Liveness detection confidence 0-100
+    biometrics_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # When biometric verification was performed
+    verification_result: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    # Full biometric verification result including quality metrics
+
     # Timestamps
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
