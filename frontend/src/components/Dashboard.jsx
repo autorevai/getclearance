@@ -969,7 +969,11 @@ export default function Dashboard() {
                 <Sparkles size={18} style={{ color: 'var(--accent-primary)' }} />
                 AI Insights
               </div>
-              <span className="card-action">
+              <span
+                className="card-action"
+                onClick={() => navigate('/analytics')}
+                style={{ cursor: 'pointer' }}
+              >
                 View All <ArrowRight size={14} />
               </span>
             </div>
@@ -995,7 +999,11 @@ export default function Dashboard() {
           <div className="card">
             <div className="card-header">
               <div className="card-title">Recent Activity</div>
-              <span className="card-action">
+              <span
+                className="card-action"
+                onClick={() => navigate('/audit-log')}
+                style={{ cursor: 'pointer' }}
+              >
                 View All <ArrowRight size={14} />
               </span>
             </div>

@@ -1083,14 +1083,6 @@ export default function CaseManagement() {
         </div>
 
         <div className="page-actions">
-          <div className="view-toggle">
-            <button className="view-toggle-btn active">List</button>
-            <button className="view-toggle-btn">Kanban</button>
-          </div>
-          <button className="btn btn-secondary">
-            <Download size={16} />
-            Export
-          </button>
           <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
             <Plus size={16} />
             Create Case

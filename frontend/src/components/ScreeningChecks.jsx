@@ -10,7 +10,6 @@ import {
   Sparkles,
   Eye,
   Play,
-  Settings,
   Database,
   Loader2,
   XCircle
@@ -894,10 +893,6 @@ export default function ScreeningChecks() {
         </div>
         
         <div className="page-actions">
-          <button className="btn btn-secondary">
-            <Settings size={16} />
-            Monitoring Settings
-          </button>
           <button className="btn btn-primary" onClick={() => setShowNewCheck(true)}>
             <Play size={16} />
             Run New Check
