@@ -1,0 +1,78 @@
+# OWASP ZAP Configuration for Get Clearance API
+# =============================================
+# Usage:
+#   zap.sh -cmd -autorun zap-config.yaml
+#
+# Docker:
+#   docker run -v $(pwd):/zap/wrk/:rw owasp/zap2docker-stable \
+#     zap-api-scan.py -t http://localhost:8000/openapi.json -f openapi
+
+env:
+  contexts:
+    - name: "GetClearance API"
+      urls:
+        - "http://localhost:8000"
+      includePaths:
+        - "http://localhost:8000/api/v1/.*"
+      excludePaths:
+        - "http://localhost:8000/docs.*"
+        - "http://localhost:8000/redoc.*"
+
+  parameters:
+    failOnError: true
+    failOnWarning: false
+    progressToStdout: true
+
+jobs:
+  - type: spider
+    parameters:
+      maxDuration: 5
+      maxDepth: 5
+      handleODataParametersVisited: false
+
+  - type: passiveScan-config
+    parameters:
+      maxAlertsPerRule: 10
+      scanOnlyInScope: true
+
+  - type: spiderAjax
+    parameters:
+      maxDuration: 5
+      maxCrawlDepth: 5
+      numberOfBrowsers: 1
+      runOnlyIfModern: true
+
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 10
+
+  - type: activeScan
+    parameters:
+      maxRuleDurationInMins: 5
+      maxScanDurationInMins: 60
+      policy: "API-Scan"
+      scanOnlyInScope: true
+      threadPerHost: 2
+
+  - type: report
+    parameters:
+      template: "traditional-html"
+      reportDir: "/zap/wrk/reports"
+      reportFile: "zap-security-report"
+      reportTitle: "Get Clearance Security Scan"
+      displayReport: false
+
+# Alert thresholds
+alertFilters:
+  # Ignore informational alerts about missing security headers
+  - ruleId: 10021  # X-Content-Type-Options Header Missing
+    alert: "Ignore"
+    newRisk: "Low"
+
+  # CSP header not critical for API
+  - ruleId: 10038  # Content Security Policy (CSP) Header Not Set
+    alert: "Ignore"
+
+  # Cookie flags not applicable for token-based auth
+  - ruleId: 10010  # Cookie No HttpOnly Flag
+    newRisk: "Low"

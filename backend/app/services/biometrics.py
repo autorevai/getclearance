@@ -1,14 +1,11 @@
 """
 Get Clearance - Biometrics Service
 ===================================
-Service for face matching and liveness detection.
-
-This is a placeholder implementation that returns mock data for development.
-Production integration with AWS Rekognition will be implemented in Terminal 5.
+Service for face matching and liveness detection using AWS Rekognition.
 
 Features:
 - Face comparison between ID photo and selfie
-- Liveness detection (anti-spoofing)
+- Liveness detection (anti-spoofing via quality analysis)
 - Face quality assessment
 - Age estimation
 
@@ -24,15 +21,29 @@ Usage:
     liveness = await biometrics_service.detect_liveness(selfie)
     if liveness.is_live:
         print("Live face detected")
+
+AWS Configuration:
+    Requires these environment variables:
+    - AWS_ACCESS_KEY_ID
+    - AWS_SECRET_ACCESS_KEY
+    - AWS_REGION (default: us-east-1)
+
+    IAM permissions needed:
+    - rekognition:CompareFaces
+    - rekognition:DetectFaces
 """
 
 import base64
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any
 from uuid import UUID
+
+import boto3
+from botocore.exceptions import ClientError, BotoCoreError
 
 from app.config import settings
 
@@ -183,21 +194,27 @@ class BiometricsService:
     """
     Biometrics service for face matching and liveness detection.
 
-    Currently a placeholder implementation returning mock data.
-    Will integrate with AWS Rekognition in Terminal 5.
+    Uses AWS Rekognition for production biometrics:
+    - CompareFaces: Compare ID photo to selfie
+    - DetectFaces: Quality analysis and passive liveness
 
     Configuration:
-        AWS credentials in config.py:
+        AWS credentials in environment:
         - AWS_ACCESS_KEY_ID
         - AWS_SECRET_ACCESS_KEY
         - AWS_REGION
 
     Mock mode:
-        When AWS is not configured, returns realistic mock data for development.
+        When AWS is not configured, returns mock data for development.
     """
 
     # Similarity threshold for face match
     DEFAULT_SIMILARITY_THRESHOLD = 90.0
+
+    # Liveness quality thresholds
+    MIN_BRIGHTNESS = 40.0
+    MIN_SHARPNESS = 40.0
+    MAX_POSE_ANGLE = 30.0  # degrees
 
     def __init__(self):
         """Initialize biometrics service."""
@@ -209,28 +226,79 @@ class BiometricsService:
 
     def _check_aws_config(self) -> bool:
         """Check if AWS credentials are configured."""
-        return bool(
+        has_creds = bool(
             getattr(settings, 'aws_access_key_id', None) and
             getattr(settings, 'aws_secret_access_key', None) and
             getattr(settings, 'aws_region', None)
         )
+        logger.info(f"AWS Rekognition configured: {has_creds}")
+        return has_creds
 
     def _init_rekognition(self) -> None:
         """Initialize AWS Rekognition client."""
-        # TODO: Initialize boto3 Rekognition client in Terminal 5
-        # import boto3
-        # self._rekognition_client = boto3.client(
-        #     'rekognition',
-        #     aws_access_key_id=settings.aws_access_key_id,
-        #     aws_secret_access_key=settings.aws_secret_access_key,
-        #     region_name=settings.aws_region,
-        # )
-        pass
+        try:
+            self._rekognition_client = boto3.client(
+                'rekognition',
+                aws_access_key_id=settings.aws_access_key_id,
+                aws_secret_access_key=settings.aws_secret_access_key,
+                region_name=settings.aws_region,
+            )
+            logger.info(f"AWS Rekognition client initialized (region: {settings.aws_region})")
+        except Exception as e:
+            logger.error(f"Failed to initialize Rekognition client: {e}")
+            self._rekognition_client = None
+            self._aws_configured = False
 
     @property
     def is_configured(self) -> bool:
         """Check if biometrics service is configured for production use."""
-        return self._aws_configured
+        return self._aws_configured and self._rekognition_client is not None
+
+    def _extract_quality_from_face(self, face_detail: dict) -> FaceQuality:
+        """Extract FaceQuality from AWS DetectFaces response."""
+        quality = face_detail.get('Quality', {})
+        pose = face_detail.get('Pose', {})
+        eyes_open = face_detail.get('EyesOpen', {})
+        mouth_open = face_detail.get('MouthOpen', {})
+        sunglasses = face_detail.get('Sunglasses', {})
+
+        brightness = quality.get('Brightness', 50.0)
+        sharpness = quality.get('Sharpness', 50.0)
+        pitch = pose.get('Pitch', 0.0)
+        yaw = pose.get('Yaw', 0.0)
+        roll = pose.get('Roll', 0.0)
+
+        # Determine if quality is acceptable
+        is_acceptable = (
+            brightness >= self.MIN_BRIGHTNESS and
+            sharpness >= self.MIN_SHARPNESS and
+            abs(pitch) <= self.MAX_POSE_ANGLE and
+            abs(yaw) <= self.MAX_POSE_ANGLE and
+            abs(roll) <= self.MAX_POSE_ANGLE and
+            eyes_open.get('Value', True) and
+            not sunglasses.get('Value', False)
+        )
+
+        return FaceQuality(
+            brightness=round(brightness, 1),
+            sharpness=round(sharpness, 1),
+            contrast=round((brightness + sharpness) / 2, 1),  # AWS doesn't provide contrast
+            pose_pitch=round(pitch, 1),
+            pose_yaw=round(yaw, 1),
+            pose_roll=round(roll, 1),
+            eyes_open=eyes_open.get('Value', True),
+            mouth_open=mouth_open.get('Value', False),
+            sunglasses=sunglasses.get('Value', False),
+            is_acceptable=is_acceptable,
+        )
+
+    def _extract_emotions(self, face_detail: dict) -> dict[str, float]:
+        """Extract emotions from AWS face details."""
+        emotions = face_detail.get('Emotions', [])
+        return {
+            e['Type'].lower(): round(e['Confidence'] / 100, 2)
+            for e in emotions
+        }
 
     async def compare_faces(
         self,
@@ -239,7 +307,7 @@ class BiometricsService:
         similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
     ) -> FaceComparisonResult:
         """
-        Compare two faces for matching.
+        Compare two faces for matching using AWS Rekognition.
 
         Args:
             source_image: Source face image (e.g., ID photo) as bytes
@@ -249,22 +317,117 @@ class BiometricsService:
         Returns:
             FaceComparisonResult with match status and similarity score
         """
+        start_time = time.time()
+
         if not self.is_configured:
+            logger.warning("AWS not configured, using mock face comparison")
             return self._mock_compare_faces(source_image, target_image, similarity_threshold)
 
-        # TODO: AWS Rekognition integration in Terminal 5
-        # try:
-        #     response = self._rekognition_client.compare_faces(
-        #         SourceImage={'Bytes': source_image},
-        #         TargetImage={'Bytes': target_image},
-        #         SimilarityThreshold=similarity_threshold,
-        #         QualityFilter='AUTO',
-        #     )
-        #     ...
-        # except ClientError as e:
-        #     ...
+        try:
+            logger.info(f"Comparing faces with AWS Rekognition (threshold: {similarity_threshold})")
 
-        return self._mock_compare_faces(source_image, target_image, similarity_threshold)
+            response = self._rekognition_client.compare_faces(
+                SourceImage={'Bytes': source_image},
+                TargetImage={'Bytes': target_image},
+                SimilarityThreshold=float(similarity_threshold),
+                QualityFilter='AUTO',
+            )
+
+            processing_time = int((time.time() - start_time) * 1000)
+
+            # Check if we got a match
+            face_matches = response.get('FaceMatches', [])
+
+            if face_matches:
+                # Use the best match
+                best_match = face_matches[0]
+                similarity = best_match.get('Similarity', 0.0)
+                face = best_match.get('Face', {})
+                confidence = face.get('Confidence', 0.0)
+
+                # Extract quality from source and target
+                source_face = response.get('SourceImageFace', {})
+                source_quality = self._extract_quality_from_face(source_face) if source_face else None
+
+                match = similarity >= similarity_threshold
+                result = FaceMatchResult.MATCH if match else FaceMatchResult.NO_MATCH
+
+                logger.info(f"Face comparison result: similarity={similarity:.1f}, match={match}")
+
+                return FaceComparisonResult(
+                    match=match,
+                    result=result,
+                    similarity=round(similarity, 2),
+                    confidence=round(confidence, 2),
+                    source_face_quality=source_quality,
+                    target_face_quality=None,  # Would need separate DetectFaces call
+                    processing_time_ms=processing_time,
+                    is_mock=False,
+                    raw_response=response,
+                )
+            else:
+                # No face match found
+                unmatched = response.get('UnmatchedFaces', [])
+                logger.info(f"No face match found. Unmatched faces: {len(unmatched)}")
+
+                return FaceComparisonResult(
+                    match=False,
+                    result=FaceMatchResult.NO_MATCH,
+                    similarity=0.0,
+                    confidence=0.0,
+                    processing_time_ms=processing_time,
+                    is_mock=False,
+                    raw_response=response,
+                )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = e.response['Error']['Message']
+            logger.error(f"AWS Rekognition error: {error_code} - {error_message}")
+
+            # Handle specific errors
+            if error_code in ['InvalidParameterException', 'InvalidImageFormatException']:
+                return FaceComparisonResult(
+                    match=False,
+                    result=FaceMatchResult.ERROR,
+                    similarity=0.0,
+                    confidence=0.0,
+                    processing_time_ms=int((time.time() - start_time) * 1000),
+                    is_mock=False,
+                    error_message=f"Invalid image: {error_message}",
+                )
+            elif error_code == 'ImageTooLargeException':
+                return FaceComparisonResult(
+                    match=False,
+                    result=FaceMatchResult.ERROR,
+                    similarity=0.0,
+                    confidence=0.0,
+                    processing_time_ms=int((time.time() - start_time) * 1000),
+                    is_mock=False,
+                    error_message="Image too large (max 5MB)",
+                )
+            else:
+                return FaceComparisonResult(
+                    match=False,
+                    result=FaceMatchResult.ERROR,
+                    similarity=0.0,
+                    confidence=0.0,
+                    processing_time_ms=int((time.time() - start_time) * 1000),
+                    is_mock=False,
+                    error_message=f"AWS error: {error_code}",
+                )
+
+        except Exception as e:
+            logger.exception(f"Unexpected error in face comparison: {e}")
+            return FaceComparisonResult(
+                match=False,
+                result=FaceMatchResult.ERROR,
+                similarity=0.0,
+                confidence=0.0,
+                processing_time_ms=int((time.time() - start_time) * 1000),
+                is_mock=False,
+                error_message=str(e),
+            )
 
     async def detect_liveness(
         self,
@@ -272,24 +435,142 @@ class BiometricsService:
         session_id: str | None = None,
     ) -> LivenessResult:
         """
-        Detect if the image contains a live person (not a photo/screen).
+        Detect if the image contains a live person using quality analysis.
+
+        Uses AWS Rekognition DetectFaces with quality metrics as a proxy for liveness:
+        - Good brightness and sharpness
+        - Eyes open
+        - Reasonable head pose
+        - No sunglasses
+
+        For production-grade liveness, consider AWS Rekognition Face Liveness
+        which requires interactive session management.
 
         Args:
             image: Face image as bytes
-            session_id: Optional session ID for multi-frame liveness check
+            session_id: Optional session ID (unused in passive mode)
 
         Returns:
             LivenessResult with liveness status and confidence
         """
+        start_time = time.time()
+
         if not self.is_configured:
+            logger.warning("AWS not configured, using mock liveness detection")
             return self._mock_detect_liveness(image)
 
-        # TODO: AWS Rekognition Liveness integration in Terminal 5
-        # AWS offers two approaches:
-        # 1. FaceLivenessSession (interactive, requires SDK)
-        # 2. DetectFaces with quality analysis (passive)
+        try:
+            logger.info("Detecting liveness with AWS Rekognition")
 
-        return self._mock_detect_liveness(image)
+            response = self._rekognition_client.detect_faces(
+                Image={'Bytes': image},
+                Attributes=['ALL'],
+            )
+
+            processing_time = int((time.time() - start_time) * 1000)
+
+            face_details = response.get('FaceDetails', [])
+
+            if not face_details:
+                logger.info("No face detected in liveness check")
+                return LivenessResult(
+                    is_live=False,
+                    confidence=0.0,
+                    confidence_level=LivenessConfidence.UNKNOWN,
+                    processing_time_ms=processing_time,
+                    is_mock=False,
+                    error_message="No face detected",
+                )
+
+            # Use the primary (largest) face
+            face = face_details[0]
+            quality = self._extract_quality_from_face(face)
+
+            # Calculate liveness score based on quality metrics
+            # Higher quality = more likely to be a real live face
+            quality_score = (quality.brightness + quality.sharpness) / 2
+
+            # Pose penalty - extreme angles suggest photo manipulation
+            pose_penalty = (
+                abs(quality.pose_pitch) + abs(quality.pose_yaw) + abs(quality.pose_roll)
+            ) / 3
+            pose_multiplier = max(0.5, 1.0 - (pose_penalty / 60))
+
+            # Eyes/sunglasses factor
+            eyes_factor = 1.0 if quality.eyes_open and not quality.sunglasses else 0.7
+
+            # Calculate final liveness confidence
+            liveness_confidence = min(100.0, quality_score * pose_multiplier * eyes_factor)
+
+            # Determine if live
+            is_live = quality.is_acceptable and liveness_confidence >= 70
+
+            # Confidence level
+            if liveness_confidence >= 90:
+                level = LivenessConfidence.HIGH
+            elif liveness_confidence >= 75:
+                level = LivenessConfidence.MEDIUM
+            elif liveness_confidence >= 50:
+                level = LivenessConfidence.LOW
+            else:
+                level = LivenessConfidence.UNKNOWN
+
+            # Extract age range
+            age_range_data = face.get('AgeRange', {})
+            age_range = None
+            if age_range_data:
+                age_range = (age_range_data.get('Low', 0), age_range_data.get('High', 100))
+
+            # Determine which "challenges" passed
+            challenges_passed = []
+            if quality.eyes_open:
+                challenges_passed.append("eyes_open")
+            if not quality.sunglasses:
+                challenges_passed.append("no_sunglasses")
+            if abs(quality.pose_pitch) <= 15:
+                challenges_passed.append("good_pose")
+            if quality.brightness >= 50:
+                challenges_passed.append("good_lighting")
+
+            logger.info(f"Liveness result: is_live={is_live}, confidence={liveness_confidence:.1f}")
+
+            return LivenessResult(
+                is_live=is_live,
+                confidence=round(liveness_confidence, 2),
+                confidence_level=level,
+                quality=quality,
+                age_range=age_range,
+                challenges_passed=challenges_passed,
+                anti_spoofing_score=round(liveness_confidence, 2),
+                processing_time_ms=processing_time,
+                is_mock=False,
+                raw_response=response,
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = e.response['Error']['Message']
+            logger.error(f"AWS Rekognition error in liveness: {error_code} - {error_message}")
+
+            return LivenessResult(
+                is_live=False,
+                confidence=0.0,
+                confidence_level=LivenessConfidence.UNKNOWN,
+                processing_time_ms=int((time.time() - start_time) * 1000),
+                is_mock=False,
+                error_message=f"AWS error: {error_code}",
+            )
+
+        except Exception as e:
+            logger.exception(f"Unexpected error in liveness detection: {e}")
+            return LivenessResult(
+                is_live=False,
+                confidence=0.0,
+                confidence_level=LivenessConfidence.UNKNOWN,
+                processing_time_ms=int((time.time() - start_time) * 1000),
+                is_mock=False,
+                error_message=str(e),
+            )
 
     async def detect_faces(
         self,
@@ -304,12 +585,86 @@ class BiometricsService:
         Returns:
             FaceDetectionResult with face count and details
         """
+        start_time = time.time()
+
         if not self.is_configured:
+            logger.warning("AWS not configured, using mock face detection")
             return self._mock_detect_faces(image)
 
-        # TODO: AWS Rekognition DetectFaces in Terminal 5
+        try:
+            logger.info("Detecting faces with AWS Rekognition")
 
-        return self._mock_detect_faces(image)
+            response = self._rekognition_client.detect_faces(
+                Image={'Bytes': image},
+                Attributes=['ALL'],
+            )
+
+            face_details = response.get('FaceDetails', [])
+            faces_detected = len(face_details)
+
+            if faces_detected == 0:
+                return FaceDetectionResult(
+                    faces_detected=0,
+                    is_mock=False,
+                    error_message="No faces detected",
+                )
+
+            # Use the primary face
+            face = face_details[0]
+            bounding_box = face.get('BoundingBox', {})
+            quality = self._extract_quality_from_face(face)
+            emotions = self._extract_emotions(face)
+
+            # Gender (if available)
+            gender_data = face.get('Gender', {})
+            gender = gender_data.get('Value', '').lower() if gender_data.get('Confidence', 0) > 90 else None
+
+            # Age range
+            age_range_data = face.get('AgeRange', {})
+            age_range = None
+            if age_range_data:
+                age_range = (age_range_data.get('Low', 0), age_range_data.get('High', 100))
+
+            # Landmarks
+            landmarks = [
+                {"type": lm['Type'], "x": lm['X'], "y": lm['Y']}
+                for lm in face.get('Landmarks', [])
+            ]
+
+            logger.info(f"Detected {faces_detected} face(s)")
+
+            return FaceDetectionResult(
+                faces_detected=faces_detected,
+                primary_face_bounds={
+                    "left": bounding_box.get('Left', 0),
+                    "top": bounding_box.get('Top', 0),
+                    "width": bounding_box.get('Width', 0),
+                    "height": bounding_box.get('Height', 0),
+                },
+                quality=quality,
+                landmarks=landmarks,
+                emotions=emotions,
+                gender=gender,
+                age_range=age_range,
+                is_mock=False,
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            logger.error(f"AWS Rekognition error in face detection: {error_code}")
+            return FaceDetectionResult(
+                faces_detected=0,
+                is_mock=False,
+                error_message=f"AWS error: {error_code}",
+            )
+
+        except Exception as e:
+            logger.exception(f"Unexpected error in face detection: {e}")
+            return FaceDetectionResult(
+                faces_detected=0,
+                is_mock=False,
+                error_message=str(e),
+            )
 
     async def assess_face_quality(
         self,
@@ -327,8 +682,9 @@ class BiometricsService:
         if not self.is_configured:
             return self._mock_face_quality()
 
-        # TODO: Extract quality from DetectFaces response
-
+        result = await self.detect_faces(image)
+        if result.quality:
+            return result.quality
         return self._mock_face_quality()
 
     async def verify_applicant_selfie(
@@ -355,7 +711,6 @@ class BiometricsService:
         Returns:
             Complete verification result dict
         """
-        import time
         start = time.time()
 
         result = {
@@ -376,7 +731,11 @@ class BiometricsService:
         if not face_match.match:
             result["failure_reasons"].append("face_mismatch")
 
+        if face_match.error_message:
+            result["failure_reasons"].append(f"face_match_error: {face_match.error_message}")
+
         # Step 2: Liveness detection
+        liveness = None
         if check_liveness:
             liveness = await self.detect_liveness(selfie)
             result["liveness"] = liveness.to_dict()
@@ -385,29 +744,30 @@ class BiometricsService:
                 result["failure_reasons"].append("liveness_failed")
 
         # Calculate overall result
-        if face_match.match and (not check_liveness or liveness.is_live):
+        if face_match.match and (not check_liveness or (liveness and liveness.is_live)):
             result["verified"] = True
             result["overall_confidence"] = (
                 face_match.confidence * 0.6 +
-                (liveness.confidence if check_liveness else 100) * 0.4
+                (liveness.confidence if liveness else 100) * 0.4
             )
         else:
             result["overall_confidence"] = min(
                 face_match.confidence,
-                liveness.confidence if check_liveness else 100
+                liveness.confidence if liveness else 100
             )
 
         result["processing_time_ms"] = int((time.time() - start) * 1000)
 
         logger.info(
             f"Biometric verification for applicant {applicant_id}: "
-            f"verified={result['verified']}, confidence={result['overall_confidence']:.1f}"
+            f"verified={result['verified']}, confidence={result['overall_confidence']:.1f}, "
+            f"is_mock={result['is_mock']}"
         )
 
         return result
 
     # ===========================================
-    # MOCK IMPLEMENTATIONS
+    # MOCK IMPLEMENTATIONS (fallback when AWS not configured)
     # ===========================================
 
     def _mock_compare_faces(
@@ -458,7 +818,7 @@ class BiometricsService:
             confidence_level=level,
             quality=self._mock_face_quality(),
             age_range=(25, 35),  # Mock age range
-            challenges_passed=["blink", "smile"] if is_live else [],
+            challenges_passed=["eyes_open", "no_sunglasses", "good_pose", "good_lighting"] if is_live else [],
             anti_spoofing_score=round(random.uniform(85.0, 99.0), 2),
             processing_time_ms=random.randint(150, 400),
             is_mock=True,
@@ -468,10 +828,10 @@ class BiometricsService:
         """Generate mock face detection result."""
         return FaceDetectionResult(
             faces_detected=1,
-            primary_face_bounds={"left": 100, "top": 80, "width": 200, "height": 250},
+            primary_face_bounds={"left": 0.2, "top": 0.1, "width": 0.6, "height": 0.8},
             quality=self._mock_face_quality(),
             emotions={"neutral": 0.7, "happy": 0.2, "calm": 0.1},
-            gender="unknown",  # Not assuming
+            gender=None,  # Not assuming
             age_range=(25, 35),
             is_mock=True,
         )

@@ -545,3 +545,182 @@ async def analyze_document(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"AI service error: {str(e)}",
         )
+
+
+# ===========================================
+# DOCUMENT CLASSIFICATION (Claude Vision)
+# ===========================================
+
+class ClassificationResponse(BaseModel):
+    """Document classification response."""
+    document_type: str
+    country_code: str | None
+    side: str
+    confidence: float
+    detected_fields: list[str]
+    suggested_ocr_template: str | None
+    is_identity_document: bool
+    processing_time_ms: int
+
+
+@router.post("/{document_id}/classify", response_model=ClassificationResponse)
+async def classify_document(
+    document_id: UUID,
+    db: TenantDB,
+    user: AuthenticatedUser,
+):
+    """
+    Classify a document using Claude Vision.
+
+    Detects:
+    - Document type (passport, drivers_license, id_card, etc.)
+    - Country of issue
+    - Document side (front/back)
+    - Visible fields for OCR targeting
+    """
+    from app.services.document_classifier import (
+        document_classifier,
+        DocumentClassifierError,
+    )
+
+    query = select(Document).where(
+        Document.id == document_id,
+        Document.tenant_id == user.tenant_id,
+    )
+    result = await db.execute(query)
+    document = result.scalar_one_or_none()
+
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+
+    if not document.storage_path:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document has no associated file",
+        )
+
+    # Download document from storage
+    try:
+        if not storage_service.is_configured:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Storage service not configured",
+            )
+
+        image_bytes = await storage_service.download_object(document.storage_path)
+        if not image_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document file not found in storage",
+            )
+
+    except StorageServiceError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Storage error: {str(e)}",
+        )
+
+    # Run classification
+    try:
+        classification = await document_classifier.classify(
+            image_bytes,
+            filename=document.file_name,
+        )
+
+        # Update document with classification result
+        document.extracted_data = document.extracted_data or {}
+        document.extracted_data["_classification"] = {
+            "document_type": classification.document_type.value,
+            "country_code": classification.country_code,
+            "side": classification.side.value,
+            "confidence": classification.confidence,
+            "detected_fields": classification.detected_fields,
+            "suggested_ocr_template": classification.suggested_ocr_template,
+            "is_identity_document": classification.is_identity_document,
+            "classified_at": datetime.utcnow().isoformat(),
+        }
+
+        # Update document type if high confidence
+        if classification.confidence >= 80:
+            document.type = classification.document_type.value
+
+        await db.flush()
+
+        return ClassificationResponse(
+            document_type=classification.document_type.value,
+            country_code=classification.country_code,
+            side=classification.side.value,
+            confidence=classification.confidence,
+            detected_fields=classification.detected_fields,
+            suggested_ocr_template=classification.suggested_ocr_template,
+            is_identity_document=classification.is_identity_document,
+            processing_time_ms=classification.processing_time_ms,
+        )
+
+    except DocumentClassifierError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Classification error: {str(e)}",
+        )
+
+
+@router.post("/classify", response_model=ClassificationResponse)
+async def classify_uploaded_image(
+    user: AuthenticatedUser,
+    file: UploadFile = File(...),
+):
+    """
+    Classify an uploaded document image without storing it.
+
+    Useful for:
+    - Preview classification before formal upload
+    - Testing document types
+    - Real-time feedback in SDK
+    """
+    from app.services.document_classifier import (
+        document_classifier,
+        DocumentClassifierError,
+    )
+
+    # Validate file size (10MB limit)
+    max_size = 10 * 1024 * 1024
+    content = await file.read()
+    if len(content) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="File too large. Maximum 10MB.",
+        )
+
+    # Validate content type
+    valid_types = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+    if file.content_type not in valid_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid content type. Allowed: {', '.join(valid_types)}",
+        )
+
+    try:
+        classification = await document_classifier.classify(
+            content,
+            filename=file.filename,
+        )
+
+        return ClassificationResponse(
+            document_type=classification.document_type.value,
+            country_code=classification.country_code,
+            side=classification.side.value,
+            confidence=classification.confidence,
+            detected_fields=classification.detected_fields,
+            suggested_ocr_template=classification.suggested_ocr_template,
+            is_identity_document=classification.is_identity_document,
+            processing_time_ms=classification.processing_time_ms,
+        )
+
+    except DocumentClassifierError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Classification error: {str(e)}",
+        )

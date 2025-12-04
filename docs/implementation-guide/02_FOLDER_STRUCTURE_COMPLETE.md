@@ -265,13 +265,21 @@ getclearance/
 │   │   │   ├── webhook.py                    ✅ DONE - Webhook delivery with retry
 │   │   │   ├── evidence.py                   ✅ DONE - PDF generation
 │   │   │   ├── timeline.py                   ✅ DONE - Event aggregation
-│   │   │   ├── audit.py                      ✅ Security Sprint 1 COMPLETE - Audit log service with chain hashing
-│   │   │   ├── encryption.py                 🔴 Security Sprint 3 - PII encryption (CRITICAL)
-│   │   │   ├── retention.py                  🔴 Security Sprint 5 - Data retention policies
-│   │   │   ├── api_keys.py                   🔒 Sprint 1 - API key management
-│   │   │   ├── liveness.py                   🔒 Sprint 3 - AWS Rekognition liveness
-│   │   │   ├── face_matching.py              🔒 Sprint 3 - Face comparison service
-│   │   │   └── monitoring.py                 🔒 Sprint 5 - Ongoing monitoring service
+│   │   │   ├── audit.py                      ✅ Security Sprint 1 - Audit log service with chain hashing
+│   │   │   ├── encryption.py                 ✅ Security Sprint 3 - PII encryption (Fernet AES)
+│   │   │   ├── retention.py                  ✅ Security Sprint 5 - Data retention policies
+│   │   │   ├── monitoring.py                 ✅ F1 - Ongoing AML monitoring service
+│   │   │   ├── kyb_screening.py              ✅ F2 - KYB company + UBO screening
+│   │   │   ├── risk_engine.py                ✅ F3 - Weighted risk calculation
+│   │   │   ├── address_verification.py       ✅ A3 - Smarty + FATF high-risk countries
+│   │   │   ├── biometrics.py                 ✅ A1 - AWS Rekognition face match + liveness
+│   │   │   ├── device_intel.py               ✅ A2 - IPQualityScore fraud detection
+│   │   │   ├── document_classifier.py        ✅ A5 - Claude Vision document type detection
+│   │   │   ├── kyc_share.py                  ✅ A4 - Reusable KYC tokens
+│   │   │   ├── analytics.py                  ✅ DONE - Analytics aggregation
+│   │   │   ├── integrations.py               ✅ DONE - API keys + webhooks
+│   │   │   ├── billing.py                    ✅ DONE - Stripe billing
+│   │   │   └── usage.py                      ✅ DONE - Usage tracking
 │   │   │
 │   │   ├── 📁 middleware/                    🔴 SECURITY + PRODUCTION HARDENING
 │   │   │   ├── __init__.py                   🔴 Security Sprint 2 - Module exports

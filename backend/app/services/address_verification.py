@@ -135,8 +135,8 @@ class AddressVerificationService:
             smarty_auth_id: Smarty API auth ID
             smarty_auth_token: Smarty API auth token
         """
-        self.smarty_auth_id = smarty_auth_id or getattr(settings, 'SMARTY_AUTH_ID', None)
-        self.smarty_auth_token = smarty_auth_token or getattr(settings, 'SMARTY_AUTH_TOKEN', None)
+        self.smarty_auth_id = smarty_auth_id or getattr(settings, 'smarty_auth_id', None)
+        self.smarty_auth_token = smarty_auth_token or getattr(settings, 'smarty_auth_token', None)
 
         # Check if Smarty is configured
         self.smarty_configured = bool(self.smarty_auth_id and self.smarty_auth_token)

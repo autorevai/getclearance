@@ -541,10 +541,32 @@ async def review_applicant(
         ip_address=ctx.ip_address,
     )
 
-    # TODO: Send notification webhooks
-
     await db.flush()
     await db.refresh(applicant)
+
+    # Send webhook notification (async, non-blocking)
+    try:
+        from app.services.webhook import webhook_service
+        await webhook_service.send_webhook(
+            tenant_id=user.tenant_id,
+            event_type="applicant.reviewed",
+            data={
+                "applicant_id": str(applicant.id),
+                "external_id": applicant.external_id,
+                "status": data.decision,
+                "risk_score": applicant.risk_score,
+                "risk_level": applicant.risk_level,
+                "review_decision": "manual_approved" if data.decision == "approved" else "manual_rejected",
+                "reviewed_by": str(user.id) if user.id else None,
+                "reviewed_at": applicant.reviewed_at.isoformat() if applicant.reviewed_at else None,
+                "flags": applicant.flags or [],
+            },
+        )
+    except Exception as e:
+        # Don't fail the review if webhook fails - log and continue
+        import logging
+        logging.getLogger(__name__).error(f"Failed to send webhook: {e}")
+
     return ApplicantDetail.model_validate(applicant)
 
 

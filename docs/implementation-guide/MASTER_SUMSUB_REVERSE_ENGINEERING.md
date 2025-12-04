@@ -1398,30 +1398,37 @@ cd getclearance
 
 | Sprint | Terminal | Status | Started | Completed |
 |--------|----------|--------|---------|-----------|
-| B1: Audit | 1 | TODO | - | - |
-| B2: Rate Limit | 1 | TODO | - | - |
-| B3: Encryption | 1 | TODO | - | - |
-| B4: Missing APIs | 1 | TODO | - | - |
-| B5: GDPR | 1 | TODO | - | - |
-| B6: Monitoring | 1 | TODO | - | - |
-| F1: Ongoing AML | 2 | TODO | - | - |
-| F2: KYB | 2 | TODO | - | - |
-| F3: Risk Workflows | 2 | TODO | - | - |
-| F4: Questionnaires | 2 | TODO | - | - |
-| F5: Address | 2 | TODO | - | - |
-| F6: Liveness | 2 | TODO | - | - |
-| U1: Settings | 3 | TODO | - | - |
-| U2: Audit Log | 3 | TODO | - | - |
-| U3: Analytics | 3 | TODO | - | - |
-| U4: Integrations | 3 | TODO | - | - |
-| U5: Companies | 3 | TODO | - | - |
-| U6: Billing | 3 | TODO | - | - |
-| T1: Unit Tests | 4 | TODO | - | - |
+| B1: Audit | 1 | ✅ DONE | Dec 2, 2025 | Dec 2, 2025 |
+| B2: Rate Limit | 1 | ✅ DONE | Dec 2, 2025 | Dec 2, 2025 |
+| B3: Encryption | 1 | ✅ DONE | Dec 2, 2025 | Dec 2, 2025 |
+| B4: Missing APIs | 1 | ✅ DONE | Dec 2, 2025 | Dec 2, 2025 |
+| B5: GDPR | 1 | ✅ DONE | Dec 2, 2025 | Dec 2, 2025 |
+| B6: Monitoring | 1 | ✅ DONE | Dec 2, 2025 | Dec 2, 2025 |
+| F1: Ongoing AML | 2 | ✅ DONE | Dec 2, 2025 | Dec 3, 2025 |
+| F2: KYB | 2 | ✅ DONE | Dec 2, 2025 | Dec 3, 2025 |
+| F3: Risk Workflows | 2 | ✅ DONE | Dec 2, 2025 | Dec 3, 2025 |
+| F4: Questionnaires | 2 | ✅ DONE | Dec 2, 2025 | Dec 3, 2025 |
+| F5: Address | 2 | ✅ DONE | Dec 2, 2025 | Dec 3, 2025 |
+| F6: Liveness | 2 | ✅ DONE | Dec 2, 2025 | Dec 3, 2025 |
+| U1: Settings | 3 | ✅ DONE | Dec 2, 2025 | Dec 3, 2025 |
+| U2: Audit Log | 3 | ✅ DONE | Dec 2, 2025 | Dec 3, 2025 |
+| U3: Analytics | 3 | ✅ DONE | Dec 2, 2025 | Dec 3, 2025 |
+| U4: Integrations | 3 | ✅ DONE | Dec 2, 2025 | Dec 3, 2025 |
+| U5: Companies | 3 | ✅ DONE | Dec 2, 2025 | Dec 3, 2025 |
+| U6: Billing | 3 | ✅ DONE | Dec 2, 2025 | Dec 3, 2025 |
+| S17: Reusable KYC | 3 | ✅ DONE | Dec 3, 2025 | Dec 3, 2025 |
+| T1: Unit Tests | 4 | 🔄 IN PROGRESS | Dec 4, 2025 | - |
 | T2: Integration | 4 | TODO | - | - |
 | T3: E2E | 4 | TODO | - | - |
 | T4: Load | 4 | TODO | - | - |
 | T5: Security | 4 | TODO | - | - |
-| T6: Deploy | 4 | TODO | - | - |
+| T6: Deploy | 4 | ✅ DONE | Dec 1, 2025 | Dec 1, 2025 |
+| A1: Face Match + Liveness | 5 | ✅ DONE | Dec 4, 2025 | Dec 4, 2025 |
+| A2: Fraud Detection (IPQS) | 5 | ✅ DONE | Dec 4, 2025 | Dec 4, 2025 |
+| A3: Address Verification | 5 | ✅ DONE | Dec 2, 2025 | Dec 4, 2025 |
+| A4: Reusable KYC | 5 | ✅ DONE | Dec 3, 2025 | Dec 3, 2025 |
+| A5: Document Classification | 5 | ✅ DONE | Dec 4, 2025 | Dec 4, 2025 |
+| A6: Video Identification | 5 | TODO | - | - |
 
 ---
 

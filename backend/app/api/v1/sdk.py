@@ -278,7 +278,7 @@ async def create_sdk_access_token(
             phone=request.phone,
             first_name=request.first_name,
             last_name=request.last_name,
-            metadata=request.metadata or {},
+            custom_data=request.metadata or {},
             source="sdk",
             status="pending",
         )
@@ -512,12 +512,12 @@ async def complete_sdk_step(
     db = session["db"]
 
     # Record step completion in applicant metadata
-    steps_completed = applicant.metadata.get("sdk_steps_completed", [])
+    steps_completed = applicant.custom_data.get("sdk_steps_completed", [])
     if request.step_name not in steps_completed:
         steps_completed.append(request.step_name)
 
-    applicant.metadata = {
-        **applicant.metadata,
+    applicant.custom_data = {
+        **applicant.custom_data,
         "sdk_steps_completed": steps_completed,
         f"step_{request.step_name}_data": request.data,
         f"step_{request.step_name}_completed_at": datetime.utcnow().isoformat(),
@@ -560,7 +560,7 @@ async def get_sdk_status(
     documents = doc_result.scalars().all()
 
     # Determine completed and remaining steps
-    steps_completed = applicant.metadata.get("sdk_steps_completed", [])
+    steps_completed = applicant.custom_data.get("sdk_steps_completed", [])
 
     all_steps = ["consent", "document", "selfie", "review"]
     steps_remaining = [s for s in all_steps if s not in steps_completed]
@@ -606,7 +606,7 @@ async def submit_verification(
     db = session["db"]
 
     # Validate all required steps are complete
-    steps_completed = applicant.metadata.get("sdk_steps_completed", [])
+    steps_completed = applicant.custom_data.get("sdk_steps_completed", [])
     required_steps = ["consent", "document"]
 
     missing_steps = [s for s in required_steps if s not in steps_completed]
@@ -633,13 +633,33 @@ async def submit_verification(
     # Update applicant status
     applicant.status = "in_progress"
     applicant.submitted_at = datetime.utcnow()
-    applicant.metadata = {
-        **applicant.metadata,
+    applicant.custom_data = {
+        **applicant.custom_data,
         "sdk_submitted_at": datetime.utcnow().isoformat(),
     }
     applicant.updated_at = datetime.utcnow()
 
     await db.flush()
+
+    # Send webhook notification for submission
+    try:
+        from app.services.webhook import webhook_service
+        await webhook_service.send_webhook(
+            tenant_id=session["tenant_id"],
+            event_type="applicant.submitted",
+            data={
+                "applicant_id": str(applicant.id),
+                "external_id": applicant.external_id,
+                "status": "in_progress",
+                "submitted_at": applicant.submitted_at.isoformat() if applicant.submitted_at else None,
+                "documents_count": len(documents),
+                "steps_completed": steps_completed,
+            },
+        )
+    except Exception as e:
+        # Don't fail submission if webhook fails
+        import logging
+        logging.getLogger(__name__).warning(f"Failed to send submission webhook: {e}")
 
     # TODO: Trigger background verification:
     # - AML screening

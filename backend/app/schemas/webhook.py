@@ -76,6 +76,7 @@ class CaseCreatedData(BaseModel):
 # ===========================================
 
 EventType = Literal[
+    "applicant.submitted",
     "applicant.reviewed",
     "screening.completed",
     "document.verified",

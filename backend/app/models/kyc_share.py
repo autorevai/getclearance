@@ -41,8 +41,8 @@ class KYCShareToken(Base, UUIDMixin, TimestampMixin):
         Index("idx_share_tokens_applicant", "applicant_id"),
         Index("idx_share_tokens_hash", "token_hash", unique=True),
         Index("idx_share_tokens_prefix", "token_prefix"),
-        Index("idx_share_tokens_active", "tenant_id", "applicant_id",
-              postgresql_where="revoked_at IS NULL AND expires_at > now()"),
+        Index("idx_share_tokens_not_revoked", "tenant_id", "applicant_id",
+              postgresql_where="revoked_at IS NULL"),
     )
 
     # Tenant

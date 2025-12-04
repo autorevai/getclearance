@@ -2,45 +2,57 @@
 
 AI-native KYC/AML compliance platform - a Sumsub alternative.
 
-**Status: Backend 100% Complete | Frontend 100% Complete (All Sprints 1-17 Done) | LIVE 🚀**
+**Status: Backend 100% Complete | Frontend 100% Complete | Terminal 5 Advanced Features DONE | LIVE**
 
 ## Live Deployment
 
 | Component | URL | Status |
 |-----------|-----|--------|
-| Frontend | https://getclearance.vercel.app | ✅ Live |
-| Backend API | https://getclearance-production.up.railway.app | ✅ Live |
-| API Docs | https://getclearance-production.up.railway.app/docs | ✅ Live |
+| Frontend | https://getclearance.vercel.app | Live |
+| Backend API | https://getclearance-production.up.railway.app | Live |
+| API Docs | https://getclearance-production.up.railway.app/docs | Live |
 
 ## Current Reality
 
 | Component | Status | Details |
 |-----------|--------|---------|
 | Backend API | 100% Complete | All endpoints working, deployed to Railway |
-| Frontend UI | ✅ Complete | Beautiful Sumsub-style components |
-| Frontend Auth | ✅ Sprint 1 Complete | Auth0 login/logout, protected routes |
-| Frontend API Layer | ✅ Sprint 2 Complete | Services + React Query hooks ready |
-| Applicants Module | ✅ Sprint 3 Complete | Real API integration, no mock data |
-| Document Upload | ✅ Sprint 4 Complete | Multi-file upload, preview, magic byte validation |
-| Screening Module | ✅ Sprint 5 Complete | Run checks, resolve hits, AI suggestions |
-| Cases & AI Module | ✅ Sprint 6 Complete | Real API, toast notifications |
-| Polish & Real-time | ✅ Sprint 7 Complete | WebSocket, permissions, loading states, 404 |
-| Dashboard Integration | ✅ Sprint 8 Complete | Real KPIs, screening summary, activity feed |
-| Placeholder Pages | ✅ Sprint 9 Complete | Global search (Cmd+K), dynamic nav badges |
-| Settings Page | ✅ Sprint 10 Complete | Team, workflows, notifications, branding |
-| Audit Log | ✅ Sprint 11 Complete | Query interface, log viewer, chain verification |
-| Analytics | ✅ Sprint 12 Complete | Charts, reports, export, SLA tracking |
-| Integrations | ✅ Sprint 13 Complete | API keys, webhooks, event management |
-| Companies/KYB | ✅ Sprint 14 Complete | Company verification, UBOs, screening |
-| Device Intelligence | ✅ Sprint 15 Complete | Fingerprinting, fraud dashboard, IP checks |
-| Billing & Usage | ✅ Sprint 16 Complete | Stripe integration, usage tracking |
-| Reusable KYC | ✅ Sprint 17 Complete | Token sharing, consent flow, access history |
+| Frontend UI | 100% Complete | All 17 sprints done, beautiful Sumsub-style UI |
+| Security | 100% Complete | All 6 security sprints (audit, encryption, GDPR) |
+| Terminal 2 Features | 100% Complete | F1-F6 (Monitoring, KYB, Risk, Questionnaires, Address, Biometrics) |
+| Terminal 5 Advanced | 100% Complete | A1-A5 (Face Match, Fraud Detection, Address, KYC Share, Doc Classification) |
 
-**The app is fully functional.** Login, view applicants, upload documents, run AML screening, approve/reject, search/filter - all working with real data.
+**The app is fully functional.** Login, view applicants, upload documents, run AML screening, face matching, liveness detection, fraud detection - all working with real data.
+
+## Key Features
+
+### Identity Verification
+- Document OCR with AWS Textract + MRZ passport parsing
+- Face matching (ID photo vs selfie) via AWS Rekognition
+- Liveness detection via quality analysis
+- Document type auto-classification via Claude Vision
+
+### AML/Sanctions Screening
+- OpenSanctions integration (OFAC, EU, UN, UK lists)
+- Fuzzy name matching with confidence scores
+- Ongoing monitoring with daily re-screening
+- PEP tier detection (Tier 1-3)
+
+### Fraud Detection (IPQualityScore)
+- VPN/Proxy/TOR detection
+- Disposable email detection
+- VOIP phone detection
+- Device fingerprinting
+
+### Compliance
+- Tamper-evident audit logging (chain-hashed)
+- GDPR compliance (SAR export, right to erasure, consent tracking)
+- PII encryption at rest (Fernet AES)
+- 5-7 year AML retention policies
 
 ## Quick Start
 
-### Frontend Only (UI Preview - Mock Data)
+### Frontend Only (UI Preview)
 
 ```bash
 cd frontend
@@ -48,7 +60,7 @@ npm install
 npm start
 ```
 
-Open http://localhost:9000 - You'll see the UI with fake data.
+Open http://localhost:9000
 
 ### Full Stack (Backend with Real Data)
 
@@ -85,68 +97,82 @@ arq app.workers.config.WorkerSettings
 
 ```
 getclearance/
-├── frontend/                    # React application (100% complete, all API integration done)
+├── frontend/                    # React application (100% complete)
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── AppShell.jsx           # Main layout, navigation
 │   │   │   ├── Dashboard.jsx          # KPI cards (real API)
 │   │   │   ├── ApplicantsList.jsx     # Applicants table (real API)
 │   │   │   ├── ApplicantDetail.jsx    # Individual applicant (real API)
-│   │   │   ├── CreateApplicantModal.jsx # Create new applicant
-│   │   │   ├── DocumentUpload.jsx     # Drag & drop upload with progress
-│   │   │   ├── DocumentList.jsx       # Document grid with status
-│   │   │   ├── DocumentPreview.jsx    # Preview modal with zoom/tabs
-│   │   │   ├── ScreeningChecks.jsx    # AML screening
+│   │   │   ├── DocumentUpload.jsx     # Drag & drop with magic byte validation
+│   │   │   ├── ScreeningChecks.jsx    # AML screening with hit resolution
 │   │   │   ├── CaseManagement.jsx     # Case queue (real API)
-│   │   │   ├── ApplicantAssistant.jsx # AI chat (real API)
+│   │   │   ├── ApplicantAssistant.jsx # AI chat (real Claude API)
 │   │   │   ├── SearchModal.jsx        # Global search (Cmd+K)
-│   │   │   ├── ErrorBoundary.jsx      # Error handling
-│   │   │   ├── shared/                # Toast, ConfirmDialog, LoadingSpinner, NotFound
-│   │   │   └── pages/                 # Placeholder pages (Coming Soon)
-│   │   ├── App.jsx
-│   │   └── index.js
+│   │   │   ├── pages/                 # All feature pages (Settings, Analytics, etc.)
+│   │   │   ├── settings/              # Settings components
+│   │   │   ├── analytics/             # Analytics charts
+│   │   │   ├── companies/             # KYB components
+│   │   │   ├── billing/               # Stripe billing
+│   │   │   └── kyc-share/             # Reusable KYC
+│   │   ├── services/                  # API service layer
+│   │   ├── hooks/                     # React Query hooks
+│   │   └── auth/                      # Auth0 integration
 │   └── package.json
 │
 ├── backend/                     # FastAPI application (100% complete)
 │   ├── app/
-│   │   ├── main.py              # App entry point
+│   │   ├── main.py              # App entry point with rate limiting
 │   │   ├── config.py            # Settings from environment
 │   │   ├── database.py          # Async SQLAlchemy setup
-│   │   ├── dependencies.py      # Auth, tenant context
+│   │   ├── dependencies.py      # Auth, tenant context, audit
+│   │   ├── logging_config.py    # Structured JSON logging with PII scrubbing
 │   │   ├── api/v1/              # API endpoints
-│   │   │   ├── applicants.py    # KYC applicant CRUD
-│   │   │   ├── dashboard.py     # Dashboard KPIs & activity (NEW)
-│   │   │   ├── documents.py     # Document upload/download (R2)
-│   │   │   ├── screening.py     # AML screening (OpenSanctions) + list sources
-│   │   │   ├── cases.py         # Investigation cases
-│   │   │   └── ai.py            # AI risk summaries (Claude)
+│   │   │   ├── applicants.py    # KYC applicant CRUD + GDPR endpoints
+│   │   │   ├── documents.py     # Document upload/download + classification
+│   │   │   ├── screening.py     # AML screening + hit resolution
+│   │   │   ├── biometrics.py    # Face match + liveness (AWS Rekognition)
+│   │   │   ├── device_intel.py  # Fraud detection (IPQualityScore)
+│   │   │   ├── addresses.py     # Address verification (Smarty)
+│   │   │   ├── companies.py     # KYB + UBO management
+│   │   │   ├── monitoring.py    # Ongoing AML monitoring
+│   │   │   ├── workflows.py     # Risk workflow rules
+│   │   │   ├── questionnaires.py # Dynamic questionnaires
+│   │   │   ├── kyc_share.py     # Reusable KYC tokens
+│   │   │   ├── audit.py         # Audit log API
+│   │   │   ├── analytics.py     # Analytics API
+│   │   │   └── billing.py       # Stripe billing
 │   │   ├── models/              # SQLAlchemy models
 │   │   ├── schemas/             # Pydantic schemas
 │   │   ├── services/            # External integrations
 │   │   │   ├── screening.py     # OpenSanctions + fuzzy matching
+│   │   │   ├── biometrics.py    # AWS Rekognition face match + liveness
+│   │   │   ├── device_intel.py  # IPQualityScore fraud detection
+│   │   │   ├── document_classifier.py # Claude Vision document type
+│   │   │   ├── address_verification.py # Smarty + FATF countries
+│   │   │   ├── risk_engine.py   # Weighted risk calculation
+│   │   │   ├── monitoring.py    # Ongoing AML monitoring
+│   │   │   ├── kyb_screening.py # Company + UBO screening
+│   │   │   ├── audit.py         # Chain-hashed audit logging
+│   │   │   ├── encryption.py    # PII encryption (Fernet AES)
+│   │   │   ├── retention.py     # GDPR data retention
 │   │   │   ├── storage.py       # Cloudflare R2
 │   │   │   ├── ai.py            # Claude AI
-│   │   │   ├── ocr.py           # AWS Textract OCR
-│   │   │   ├── mrz_parser.py    # Passport MRZ validation
-│   │   │   ├── webhook.py       # Webhook delivery with retry
-│   │   │   ├── evidence.py      # PDF evidence pack generation
-│   │   │   ├── timeline.py      # Event aggregation
-│   │   │   └── audit.py         # Tamper-evident audit logging (Sprint B1)
+│   │   │   └── ocr.py           # AWS Textract OCR
 │   │   └── workers/             # Background job processing (ARQ)
-│   ├── tests/                   # Test suite
-│   ├── scripts/                 # Utility scripts
+│   ├── tests/                   # Test suite (244+ tests)
 │   ├── migrations/              # Alembic migrations
-│   ├── Dockerfile
 │   └── requirements.txt
 │
 ├── docs/
-│   ├── FRONTEND_AUDIT_AND_INTEGRATION_GUIDE.md  # Frontend gap analysis
-│   ├── DEPLOYMENT_GUIDE.md      # Railway deployment
-│   ├── ARCHITECTURE.md          # System design
+│   ├── DEPLOYMENT_GUIDE.md
+│   ├── ARCHITECTURE.md
 │   └── implementation-guide/
-│       ├── 08_MASTER_CHAT_PROMPTS.md     # Backend build prompts
-│       ├── 09_FRONTEND_SPRINT_PROMPTS.md # Frontend integration prompts
-│       └── 15_FEATURE_COMPLETION_SPRINTS.md # Future feature sprints (KYB, Analytics, etc.)
+│       ├── MASTER_SUMSUB_REVERSE_ENGINEERING.md  # Complete sprint tracking
+│       ├── 02_FOLDER_STRUCTURE_COMPLETE.md       # Current file structure
+│       ├── 14_BACKEND_SECURITY_SPRINT_PROMPTS.md # Security sprints
+│       ├── 18_TERMINAL2_BACKEND_FEATURES_PROMPTS.md # Backend features
+│       └── 20_TERMINAL5_ADVANCED_FEATURES_PROMPTS.md # Advanced integrations
 │
 └── README.md
 ```
@@ -160,272 +186,173 @@ getclearance/
 - Lucide React (icons)
 - Inline CSS (no external dependencies)
 
-### Backend (Complete)
+### Backend
 - FastAPI (async Python)
 - PostgreSQL 15+ with SQLAlchemy 2.0
 - Redis (caching, job queue via ARQ)
 - Cloudflare R2 (document storage)
 - Auth0 (authentication)
 
-### AI & Integrations (Complete)
-- Claude API (risk assessment, document analysis)
+### AI & Integrations
+- Claude API (risk assessment, document analysis, document classification)
 - OpenSanctions (AML/sanctions/PEP screening)
 - AWS Textract (OCR document processing)
+- AWS Rekognition (face matching, liveness detection)
+- IPQualityScore (VPN, email, phone, device fraud detection)
+- Smarty (US address verification)
+- Stripe (billing)
 
-## Features
+## API Endpoints
 
-### Backend (100% Complete)
-- [x] FastAPI with async SQLAlchemy
-- [x] PostgreSQL with multi-tenant support (RLS)
-- [x] Auth0 JWT authentication with RBAC
-- [x] Applicants CRUD API with review workflow
-- [x] Documents API with R2 presigned URLs
-- [x] Screening API with OpenSanctions integration
-- [x] Cases API for investigations
-- [x] AI endpoints for risk summaries
-- [x] Background workers (ARQ)
-- [x] OCR with MRZ passport validation
-- [x] Webhook delivery with retry logic
-- [x] Evidence pack PDF export
-- [x] Comprehensive test suite (244 tests)
-- [x] **Audit logging with chain hashing (Sprint B1)** - FinCEN/FATF compliant
-- [x] **Rate limiting & security hardening (Sprint B2)** - DDoS protection
-- [x] **PII encryption at rest (Sprint B3)** - GDPR Article 32 compliant
-- [x] **Missing endpoints fixed (Sprint B4)** - Frontend 404 errors resolved
-- [x] **GDPR compliance (Sprint B5)** - SAR export, deletion, consent tracking
-- [x] **Monitoring & alerting (Sprint B6)** - Sentry, structured logging
-- [x] Deployed to Railway
+### Biometrics (Terminal 5 - A1)
+- `POST /api/v1/biometrics/compare` - Compare two faces
+- `POST /api/v1/biometrics/liveness` - Check liveness
+- `POST /api/v1/biometrics/detect` - Detect faces
+- `POST /api/v1/biometrics/verify/{id}` - Full applicant verification
+- `GET /api/v1/biometrics/status` - Service status
 
-### Frontend (100% Complete - All Sprints Done)
-- [x] Dashboard with KPI cards
-- [x] Applicants list with filtering (real API)
-- [x] Applicant detail with tabs (real API)
-- [x] Create applicant modal
-- [x] AML Screening interface (real API)
-- [x] Case management queue (real API)
-- [x] AI assistant chat (real API)
-- [x] Dark/light theme
-- [x] **Authentication (Auth0 login/logout)**
-- [x] **API service layer (all endpoints)**
-- [x] **React Query hooks with optimistic updates**
-- [x] **Toast notifications**
-- [x] **Confirmation dialogs**
-- [x] **Keyboard shortcuts (Cmd+K, A/R for approve/reject)**
-- [x] **Batch approve/reject**
-- [x] **URL state sync (shareable filter URLs)**
-- [x] **Error boundaries**
-- [x] **Document Upload UI (Sprint 4)**
-  - [x] Drag & drop with visual feedback
-  - [x] Multi-file upload for front/back (driver's license, ID card)
-  - [x] Image thumbnail preview before upload
-  - [x] File magic byte validation for security
-  - [x] Upload progress with stages (requesting, uploading, confirming, analyzing)
-  - [x] Document list with status badges and OCR confidence
-  - [x] Preview modal with zoom, rotation, tabs (Preview, Extracted Data, AI Analysis)
-  - [x] Verification checks display (MRZ, OCR quality, fraud detection)
-- [x] **Screening Module UI (Sprint 5)**
-  - [x] Real API integration (no mock data)
-  - [x] Run new screening checks with form
-  - [x] Filter tabs connected to API (all, hits, pending)
-  - [x] Hit resolution with AI suggestions
-  - [x] Loading skeletons and error states
-  - [x] Connected list sources from API
-- [x] **Cases & AI (Sprint 6)**
-  - [x] Case management with real API
-  - [x] AI assistant with real Claude API
-  - [x] Toast notifications for all mutations
-- [x] **Polish & Real-time (Sprint 7)**
-  - [x] WebSocket real-time updates (auto-reconnect, query invalidation)
-  - [x] Permission-based UI controls (usePermissions hook, PermissionGate)
-  - [x] Loading spinners (multiple sizes and variants)
-  - [x] 404 Not Found page with suggestions
-  - [x] Consistent toast.success/error/warning patterns
-- [x] **Dashboard Integration (Sprint 8)**
-  - [x] Real KPI stats from API (today's applicants, approved, rejected, pending)
-  - [x] Real screening summary from API (sanctions, PEP, adverse media counts)
-  - [x] Real activity feed from API with relative timestamps
-  - [x] Loading skeletons for all dashboard widgets
-  - [x] Error states with retry buttons
-  - [x] Auto-refresh every 60 seconds
-  - [x] Manual refresh button
-- [x] **Placeholder Pages & Polish (Sprint 9)**
-  - [x] Global search modal (Cmd+K / Ctrl+K)
-  - [x] Search across applicants and cases
-  - [x] Dynamic navigation badge counts (real API)
-  - [x] 8 Coming Soon placeholder pages with planned features
-  - [x] Dashboard filter buttons functional (Today/Week/Month)
-  - [x] AI insight action buttons navigate correctly
-  - [x] Activity feed items clickable
-  - [x] More Actions dropdown per applicant row
-  - [x] Language selector in AI Assistant
-  - [x] Attach document button in AI Assistant
+### Fraud Detection (Terminal 5 - A2)
+- `POST /api/v1/device-intel/ip` - Check IP (VPN, proxy, TOR)
+- `POST /api/v1/device-intel/email` - Validate email
+- `POST /api/v1/device-intel/phone` - Validate phone
+- `POST /api/v1/device-intel/check-all` - Combined check
+- `GET /api/v1/device-intel/status` - Service status
 
-## Frontend Sprints - All Complete
+### Address Verification (Terminal 5 - A3)
+- `POST /api/v1/addresses/verify` - Verify address
+- `POST /api/v1/addresses/applicants/{id}/verify` - Verify applicant address
+- `GET /api/v1/addresses/countries` - Get country risk levels
 
-| Sprint | Focus | Status |
-|--------|-------|--------|
-| 0 | Backend Dashboard/Screening Endpoints | ✅ Complete |
-| 1 | Authentication (Auth0) | ✅ Complete |
-| 2 | API Service Layer | ✅ Complete |
-| 3 | Applicants Module | ✅ Complete |
-| 3+ | Polish & UX | ✅ Complete |
-| 4 | Document Upload | ✅ Complete |
-| 5 | Screening Module | ✅ Complete |
-| 6 | Cases & AI | ✅ Complete |
-| 7 | Polish & Real-time | ✅ Complete |
-| 8 | Dashboard Integration | ✅ Complete |
-| 9 | Placeholder Pages & Polish | ✅ Complete |
-| 10 | Settings Page | ✅ Complete |
-| 11 | Audit Log | ✅ Complete |
-| 12 | Analytics | ✅ Complete |
-| 13 | Integrations | ✅ Complete |
-| 14 | Companies/KYB | ✅ Complete |
-| 15 | Device Intelligence | ✅ Complete |
-| 16 | Billing & Usage | ✅ Complete |
-| 17 | Reusable KYC | ✅ Complete |
-
-**All 17 frontend sprints complete!**
-
-## Backend Security Sprints ✅ ALL COMPLETE
-
-| Sprint | Focus | Status |
-|--------|-------|--------|
-| B1 | Audit Logging Implementation | ✅ Complete |
-| B2 | Rate Limiting & Security Hardening | ✅ Complete |
-| B3 | PII Encryption | ✅ Complete |
-| B4 | Missing Endpoints & Field Fixes | ✅ Complete |
-| B5 | GDPR Compliance Features | ✅ Complete |
-| B6 | Monitoring & Alerting | ✅ Complete |
-
-**All 6 security sprints complete!** Backend is production-ready from a security standpoint.
-
-See `docs/implementation-guide/14_BACKEND_SECURITY_SPRINT_PROMPTS.md` for detailed security sprint plans.
-
-## Terminal 2: Backend Features (F1-F6) ✅ ALL COMPLETE
-
-| Sprint | Feature | Status | Files Created |
-|--------|---------|--------|---------------|
-| F1 | Ongoing AML Monitoring | ✅ Complete | `models/monitoring_alert.py`, `services/monitoring.py`, `workers/monitoring_worker.py`, `api/v1/monitoring.py` |
-| F2 | KYB/Companies Module | ✅ Complete | `models/company.py`, `schemas/company.py`, `services/kyb_screening.py`, `api/v1/companies.py` |
-| F3 | Risk Workflows | ✅ Complete | `models/workflow.py`, `services/risk_engine.py`, `api/v1/workflows.py` |
-| F4 | Questionnaires | ✅ Complete | `models/questionnaire.py`, `api/v1/questionnaires.py` |
-| F5 | Address Verification | ✅ Complete | `services/address_verification.py`, `api/v1/addresses.py` |
-| F6 | Liveness Detection | ✅ Complete | `services/biometrics.py`, `api/v1/biometrics.py`, biometrics fields on documents |
-
-See `docs/implementation-guide/18_TERMINAL2_BACKEND_FEATURES_PROMPTS.md` for sprint details.
-
-## Feature Completion Sprints ✅ ALL COMPLETE
-
-All 8 feature sprints have been implemented:
-
-| Feature | Priority | Status | Sprint |
-|---------|----------|--------|--------|
-| Settings | P0 | ✅ Complete | Sprint 10 |
-| Audit Log | P0 | ✅ Complete | Sprint 11 |
-| Analytics | P1 | ✅ Complete | Sprint 12 |
-| Integrations | P1 | ✅ Complete | Sprint 13 |
-| Companies/KYB | P1 | ✅ Complete | Sprint 14 |
-| Device Intelligence | P2 | ✅ Complete | Sprint 15 |
-| Billing & Usage | P2 | ✅ Complete | Sprint 16 |
-| Reusable KYC | P3 | ✅ Complete | Sprint 17 |
-
-See `docs/implementation-guide/15_FEATURE_COMPLETION_SPRINTS.md` for detailed sprint plans.
-
-## API Endpoints (All Working)
-
-### Dashboard (NEW - Sprint 0)
-- `GET /api/v1/dashboard/stats` - KPI statistics (today's applicants, approved, rejected, pending)
-- `GET /api/v1/dashboard/screening-summary` - Screening hit counts by type
-- `GET /api/v1/dashboard/activity` - Recent activity feed
-
-### Applicants
-- `GET /api/v1/applicants` - List applicants
-- `GET /api/v1/applicants/{id}` - Get applicant detail
-- `POST /api/v1/applicants` - Create applicant
-- `PATCH /api/v1/applicants/{id}` - Update applicant
-- `POST /api/v1/applicants/{id}/review` - Approve/reject
-- `GET /api/v1/applicants/{id}/evidence` - Download evidence PDF
-
-### Documents
-- `POST /api/v1/documents/upload-url` - Get presigned upload URL
-- `POST /api/v1/documents/{id}/confirm` - Confirm upload
-- `GET /api/v1/documents/{id}/download` - Get download URL
-- `POST /api/v1/documents/{id}/analyze` - AI document analysis
+### Document Classification (Terminal 5 - A5)
+- `POST /api/v1/documents/{id}/classify` - Classify existing document
+- `POST /api/v1/documents/classify` - Classify uploaded image
 
 ### Screening
 - `POST /api/v1/screening/check` - Run AML screening
 - `GET /api/v1/screening/checks` - List checks
 - `PATCH /api/v1/screening/hits/{id}` - Resolve hit
 - `GET /api/v1/screening/hits/{id}/suggestion` - AI resolution suggestion
-- `GET /api/v1/screening/lists` - Connected list sources (OFAC, EU, UN, UK, OpenSanctions)
+- `GET /api/v1/screening/lists` - Connected list sources
 
-### Cases
-- `GET /api/v1/cases` - List cases
-- `POST /api/v1/cases` - Create case
-- `POST /api/v1/cases/{id}/resolve` - Resolve case
-- `POST /api/v1/cases/{id}/notes` - Add note
+### Monitoring
+- `POST /api/v1/monitoring/applicants/{id}/enable` - Enable monitoring
+- `GET /api/v1/monitoring/alerts` - List alerts
+- `POST /api/v1/monitoring/alerts/{id}/resolve` - Resolve alert
+- `GET /api/v1/monitoring/stats` - Monitoring dashboard stats
 
-### AI
-- `GET /api/v1/ai/applicants/{id}/risk-summary` - Generate risk summary
-- `POST /api/v1/ai/assistant` - Applicant-facing assistant
-- `POST /api/v1/ai/batch-analyze` - Batch risk analysis
+### Applicants
+- `GET /api/v1/applicants` - List applicants
+- `GET /api/v1/applicants/{id}` - Get applicant detail
+- `POST /api/v1/applicants` - Create applicant
+- `POST /api/v1/applicants/{id}/review` - Approve/reject
+- `GET /api/v1/applicants/{id}/export` - GDPR SAR export
+- `DELETE /api/v1/applicants/{id}/gdpr-delete` - Right to erasure
 
-### Health
-- `GET /health` - Basic health check
-- `GET /health/ready` - Readiness check (DB + Redis)
+### Companies (KYB)
+- `POST /api/v1/companies` - Create company
+- `GET /api/v1/companies` - List companies
+- `POST /api/v1/companies/{id}/beneficial-owners` - Add UBO
+- `POST /api/v1/companies/{id}/screen` - Screen company + UBOs
+
+## Sprint Tracking
+
+### Backend Security Sprints (ALL COMPLETE)
+| Sprint | Focus | Status |
+|--------|-------|--------|
+| B1 | Audit Logging (chain-hashed) | Complete |
+| B2 | Rate Limiting & Security Headers | Complete |
+| B3 | PII Encryption (Fernet AES) | Complete |
+| B4 | Missing Endpoints Fixed | Complete |
+| B5 | GDPR Compliance | Complete |
+| B6 | Monitoring & Alerting (Sentry) | Complete |
+
+### Terminal 2: Backend Features (ALL COMPLETE)
+| Sprint | Feature | Status |
+|--------|---------|--------|
+| F1 | Ongoing AML Monitoring | Complete |
+| F2 | KYB/Companies Module | Complete |
+| F3 | Risk Workflows | Complete |
+| F4 | Questionnaires | Complete |
+| F5 | Address Verification | Complete |
+| F6 | Liveness Detection | Complete |
+
+### Terminal 5: Advanced Features (A1-A5 COMPLETE)
+| Sprint | Feature | API | Status |
+|--------|---------|-----|--------|
+| A1 | Face Match + Liveness | AWS Rekognition | Complete |
+| A2 | Fraud Detection | IPQualityScore | Complete |
+| A3 | Address Verification | Smarty | Complete |
+| A4 | Reusable KYC Tokens | Internal | Complete |
+| A5 | Document Classification | Claude Vision | Complete |
+| A6 | Video Identification | Twilio Video | TODO (optional) |
+
+### Frontend Sprints (ALL 17 COMPLETE)
+| Sprint | Focus | Status |
+|--------|-------|--------|
+| 1-9 | Core UI + API Integration | Complete |
+| 10 | Settings Page | Complete |
+| 11 | Audit Log | Complete |
+| 12 | Analytics | Complete |
+| 13 | Integrations | Complete |
+| 14 | Companies/KYB | Complete |
+| 15 | Device Intelligence | Complete |
+| 16 | Billing & Usage | Complete |
+| 17 | Reusable KYC | Complete |
 
 ## Environment Variables
 
-See `.env.example` for development or `.env.production.example` for production.
-
-Key variables:
+See `.env.example` for all variables. Key ones:
 
 ```bash
 # Core
-ENVIRONMENT=development
-SECRET_KEY=<generate-with-openssl-rand-hex-32>
-
-# Database
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/getclearance
-
-# Redis
 REDIS_URL=redis://localhost:6379
 
 # Auth0
 AUTH0_DOMAIN=your-tenant.auth0.com
 AUTH0_CLIENT_ID=...
-AUTH0_CLIENT_SECRET=...
 AUTH0_AUDIENCE=https://api.getclearance.com
 
-# Cloudflare R2 (Storage)
+# Security
+ENCRYPTION_KEY=<generate-with-openssl-rand-hex-32>
+
+# AI & Screening
+ANTHROPIC_API_KEY=sk-ant-...
+OPENSANCTIONS_API_KEY=...
+
+# AWS (OCR + Rekognition)
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=us-east-1
+
+# IPQualityScore (Fraud Detection)
+IPQS_API_KEY=...
+
+# Smarty (Address Verification)
+SMARTY_AUTH_ID=...
+SMARTY_AUTH_TOKEN=...
+
+# Storage
 R2_ENDPOINT=https://...
 R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
 R2_BUCKET=getclearance-docs
-
-# Claude AI
-ANTHROPIC_API_KEY=sk-ant-...
-
-# OpenSanctions (Screening)
-OPENSANCTIONS_API_KEY=...
-
-# AWS (OCR)
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-AWS_REGION=us-east-1
 ```
 
-## Development
+## API Cost Estimates
 
-### Prerequisites
-- Node.js 18+
-- Python 3.11+
-- Docker & Docker Compose
+| Service | Cost | Monthly @ 10K verifications |
+|---------|------|------------------------------|
+| AWS Rekognition | $0.001/image | ~$20 |
+| IPQualityScore | $0.0003/query | ~$10 |
+| Claude AI | $0.01/request | ~$100 |
+| Smarty | Free-$0.01/lookup | ~$0-100 |
+| OpenSanctions | Free (open source) | $0 |
+| **Total** | | **~$150-250/month** |
 
-### Running Tests
+## Running Tests
 
 ```bash
-# Backend tests
 cd backend
 pytest
 
@@ -433,73 +360,32 @@ pytest
 pytest --cov=app tests/
 ```
 
-### Running Workers
-
-```bash
-cd backend
-arq app.workers.config.WorkerSettings
-```
-
-### Utility Scripts
-
-```bash
-cd backend
-
-# Create a new tenant
-python -m scripts.create_tenant --name "Acme Corp" --admin-email "admin@acme.com"
-
-# Seed test data
-python -m scripts.seed_data --create-tenant
-
-# Check system health
-python -m scripts.check_health
-```
-
 ## Deployment
 
-### Railway (Backend - Already Deployed)
+### Backend (Railway)
+Already deployed. Push to main branch triggers auto-deploy.
 
-The backend is deployed on Railway. To redeploy:
-
-1. Push to GitHub
-2. Railway auto-deploys from main branch
-3. Migrations run automatically via `railway.json`
-
-See [docs/DEPLOYMENT_GUIDE.md](./docs/DEPLOYMENT_GUIDE.md) for detailed instructions.
-
-### Frontend (Vercel - Already Deployed)
-
-The frontend is deployed on Vercel at https://getclearance.vercel.app
-
-Environment variables in Vercel:
-```
-REACT_APP_API_BASE_URL=https://getclearance-production.up.railway.app/api/v1
-REACT_APP_AUTH0_DOMAIN=dev-8z4blmy3c8wvkp4k.us.auth0.com
-REACT_APP_AUTH0_CLIENT_ID=W5uDmvvRYDmw9Sm4avfEzoOxo26XF8rR
-REACT_APP_AUTH0_AUDIENCE=https://api.getclearance.vercel.app
-```
+### Frontend (Vercel)
+Already deployed at https://getclearance.vercel.app
 
 ## Documentation
 
-- [Frontend Audit & Integration Guide](./docs/FRONTEND_AUDIT_AND_INTEGRATION_GUIDE.md) - Gap analysis
-- [Frontend Sprint Prompts](./docs/implementation-guide/09_FRONTEND_SPRINT_PROMPTS.md) - Build prompts
-- [Deployment Guide](./docs/DEPLOYMENT_GUIDE.md) - Railway deployment
-- [Architecture](./docs/ARCHITECTURE.md) - System design
-- [Engineering Context](./docs/ENGINEERING_CONTEXT.md) - Technical details
+- [Deployment Guide](./docs/DEPLOYMENT_GUIDE.md)
+- [Architecture](./docs/ARCHITECTURE.md)
+- [Master Sprint Tracking](./docs/implementation-guide/MASTER_SUMSUB_REVERSE_ENGINEERING.md)
+- [Terminal 5 Advanced Features](./docs/implementation-guide/20_TERMINAL5_ADVANCED_FEATURES_PROMPTS.md)
 
-## Project Status Summary
+## Project Status
 
 ```
-Backend Core:     ████████████████████ 100%  - Production ready, deployed to Railway
-Frontend Core:    ████████████████████ 100%  - All integration sprints complete (1-17)
-Security:         ████████████████████ 100%  - All 6 security sprints complete! 🎉
-Feature Complete: ████████████████████ 100%  - All 8 feature sprints complete! 🎉
+Backend Core:         100% Complete
+Frontend UI:          100% Complete (17 sprints)
+Security:             100% Complete (6 sprints)
+Terminal 2 Features:  100% Complete (F1-F6)
+Terminal 5 Advanced:  100% Complete (A1-A5)
 ```
 
-**Platform 100% complete!** All features implemented including:
-- Settings, Audit Log, Analytics, Integrations
-- Companies/KYB, Device Intelligence, Billing
-- Reusable KYC (portable identity)
+**Platform is production-ready for crypto exchange KYC onboarding.**
 
 ---
 

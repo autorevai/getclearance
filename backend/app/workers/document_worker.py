@@ -36,6 +36,7 @@ from app.models import Document, Applicant
 from app.services.storage import storage_service
 from app.services.ocr import ocr_service, OCRServiceError, OCRConfigError
 from app.services.mrz_parser import mrz_parser, MRZValidationError
+from app.services.document_classifier import document_classifier, DocumentType
 
 logger = logging.getLogger(__name__)
 
@@ -125,10 +126,33 @@ async def process_document(
             else:
                 job_logger.warning("Storage service not configured, skipping file verification")
 
-            # Run OCR processing (placeholder for now)
+            # Run document classification first (Claude Vision)
+            classification_result = None
+            if storage_service.is_configured and document_classifier.is_configured:
+                try:
+                    # Download document for classification
+                    image_bytes = await storage_service.download_object(document.storage_path)
+                    if image_bytes:
+                        classification_result = await document_classifier.classify(
+                            image_bytes,
+                            filename=document.original_filename,
+                        )
+                        job_logger.info(
+                            f"Document classified: type={classification_result.document_type.value}, "
+                            f"country={classification_result.country_code}, "
+                            f"confidence={classification_result.confidence:.1f}"
+                        )
+                except Exception as e:
+                    job_logger.warning(f"Document classification failed: {e}")
+
+            # Run OCR processing (uses classification results to select template)
             ocr_result = None
             if run_ocr:
-                ocr_result = await _run_ocr_processing(document, job_logger)
+                ocr_result = await _run_ocr_processing(
+                    document,
+                    job_logger,
+                    classification=classification_result,
+                )
 
             # Build verification checks
             verification_checks = []
@@ -166,6 +190,25 @@ async def process_document(
             ocr_text = document.ocr_text
             ocr_confidence = document.ocr_confidence
             fraud_signals = document.fraud_signals or []
+
+            # Add classification results
+            if classification_result:
+                extracted_data["_classification"] = {
+                    "document_type": classification_result.document_type.value,
+                    "country_code": classification_result.country_code,
+                    "side": classification_result.side.value,
+                    "confidence": classification_result.confidence,
+                    "detected_fields": classification_result.detected_fields,
+                    "suggested_ocr_template": classification_result.suggested_ocr_template,
+                    "is_identity_document": classification_result.is_identity_document,
+                }
+
+                # Add classification confidence check
+                verification_checks.append({
+                    "check": "document_classification",
+                    "passed": classification_result.confidence >= 70,
+                    "details": f"Classified as {classification_result.document_type.value} with {classification_result.confidence:.0f}% confidence",
+                })
 
             if ocr_result:
                 extracted_data.update(ocr_result.get("extracted_data", {}))
@@ -224,6 +267,7 @@ async def process_document(
 async def _run_ocr_processing(
     document: Document,
     job_logger: logging.Logger,
+    classification: "ClassificationResult | None" = None,
 ) -> dict[str, Any] | None:
     """
     Run OCR processing on document using AWS Textract.
@@ -234,10 +278,21 @@ async def _run_ocr_processing(
     Args:
         document: Document model instance
         job_logger: Logger instance
+        classification: Optional classification result from Claude Vision
 
     Returns:
         Dict with OCR results or None if OCR not configured
     """
+    # Import here to avoid circular imports
+    from app.services.document_classifier import ClassificationResult
+
+    # Determine document type - use classification result if available
+    doc_type = document.type
+    if classification and classification.confidence >= 70:
+        # Override document type with high-confidence classification
+        doc_type = classification.document_type.value
+        job_logger.info(f"Using classified document type: {doc_type} (was: {document.type})")
+
     # Check if OCR service is configured
     if not ocr_service.is_configured:
         job_logger.warning("OCR service not configured (missing AWS credentials)")
@@ -251,13 +306,13 @@ async def _run_ocr_processing(
             "fraud_signals": [],
         }
 
-    job_logger.info(f"Running OCR for document type: {document.type}")
+    job_logger.info(f"Running OCR for document type: {doc_type}")
 
     try:
         # Run OCR via Textract
         ocr_result = await ocr_service.extract_text(
             storage_key=document.storage_path,
-            document_type=document.type,
+            document_type=doc_type,
             check_quality=True,
         )
 
@@ -270,7 +325,7 @@ async def _run_ocr_processing(
         extracted_data = ocr_result.get("extracted_data", {})
         fraud_signals = ocr_result.get("quality_issues", [])
 
-        if document.type == "passport":
+        if doc_type == "passport":
             mrz_lines = extracted_data.get("mrz_lines")
             if mrz_lines and len(mrz_lines) >= 2:
                 try:

@@ -34,6 +34,25 @@ from app.services.evidence import (
     EvidenceServiceError,
     EvidencePackResult,
 )
+from app.services.document_classifier import (
+    DocumentClassifier,
+    document_classifier,
+    DocumentClassifierError,
+    DocumentType,
+    DocumentSide,
+    ClassificationResult,
+)
+from app.services.biometrics import (
+    BiometricsService,
+    biometrics_service,
+    FaceComparisonResult,
+    LivenessResult,
+)
+from app.services.device_intel import (
+    DeviceIntelService,
+    device_intel_service,
+    DeviceIntelError,
+)
 
 __all__ = [
     # Screening (OpenSanctions)
@@ -65,4 +84,20 @@ __all__ = [
     "evidence_service",
     "EvidenceServiceError",
     "EvidencePackResult",
+    # Document Classification (Claude Vision)
+    "DocumentClassifier",
+    "document_classifier",
+    "DocumentClassifierError",
+    "DocumentType",
+    "DocumentSide",
+    "ClassificationResult",
+    # Biometrics (AWS Rekognition)
+    "BiometricsService",
+    "biometrics_service",
+    "FaceComparisonResult",
+    "LivenessResult",
+    # Device Intelligence (IPQualityScore)
+    "DeviceIntelService",
+    "device_intel_service",
+    "DeviceIntelError",
 ]

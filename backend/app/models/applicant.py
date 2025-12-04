@@ -92,7 +92,9 @@ class Applicant(Base, UUIDMixin, TimestampMixin):
     source: Mapped[str | None] = mapped_column(String(50))  # api, web, mobile, sdk
     ip_address: Mapped[str | None] = mapped_column(INET)
     device_info: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    
+    custom_data: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    # Custom data from SDK or API integrations (e.g., sdk_steps_completed)
+
     # Timestamps
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
