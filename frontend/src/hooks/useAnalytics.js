@@ -12,6 +12,7 @@ import { AnalyticsService } from '../services';
 // Query key factory for consistent key management
 export const analyticsKeys = {
   all: ['analytics'],
+  combined: (startDate, endDate, granularity) => [...analyticsKeys.all, 'combined', startDate, endDate, granularity],
   overview: (startDate, endDate) => [...analyticsKeys.all, 'overview', startDate, endDate],
   funnel: (startDate, endDate) => [...analyticsKeys.all, 'funnel', startDate, endDate],
   trends: (startDate, endDate, granularity) => [...analyticsKeys.all, 'trends', startDate, endDate, granularity],
@@ -189,51 +190,32 @@ export function useExportAnalytics() {
 }
 
 /**
- * Combined hook to fetch all analytics data at once
+ * Combined hook to fetch all analytics data in a SINGLE request (fast!)
  * @param {Date} startDate - Start date
  * @param {Date} endDate - End date
  * @param {string} granularity - Trend granularity
  */
 export function useAllAnalytics(startDate, endDate, granularity = 'day') {
-  const overview = useOverview(startDate, endDate);
-  const funnel = useFunnel(startDate, endDate);
-  const trends = useTrends(startDate, endDate, granularity);
-  const geography = useGeography(startDate, endDate);
-  const risk = useRiskDistribution(startDate, endDate);
-  const sla = useSlaPerformance(startDate, endDate);
+  const service = useAnalyticsService();
+  const startKey = formatDateKey(startDate);
+  const endKey = formatDateKey(endDate);
 
-  const isLoading =
-    overview.isLoading ||
-    funnel.isLoading ||
-    trends.isLoading ||
-    geography.isLoading ||
-    risk.isLoading ||
-    sla.isLoading;
-
-  const isError =
-    overview.isError ||
-    funnel.isError ||
-    trends.isError ||
-    geography.isError ||
-    risk.isError ||
-    sla.isError;
+  const query = useQuery({
+    queryKey: analyticsKeys.combined(startKey, endKey, granularity),
+    queryFn: ({ signal }) => service.getAll(startDate, endDate, granularity, { signal }),
+    staleTime: 60000, // 1 minute
+  });
 
   return {
-    overview: overview.data,
-    funnel: funnel.data,
-    trends: trends.data,
-    geography: geography.data,
-    risk: risk.data,
-    sla: sla.data,
-    isLoading,
-    isError,
-    refetch: () => {
-      overview.refetch();
-      funnel.refetch();
-      trends.refetch();
-      geography.refetch();
-      risk.refetch();
-      sla.refetch();
-    },
+    overview: query.data?.overview,
+    funnel: query.data?.funnel,
+    trends: query.data?.trends,
+    geography: query.data?.geography,
+    risk: query.data?.risk,
+    sla: query.data?.sla,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
   };
 }

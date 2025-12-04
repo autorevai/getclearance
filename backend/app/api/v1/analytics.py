@@ -28,6 +28,66 @@ from app.services import analytics as analytics_service
 router = APIRouter()
 
 
+# ===========================================
+# COMBINED ALL DATA (SINGLE REQUEST)
+# ===========================================
+@router.get("/all")
+async def get_all_analytics(
+    db: TenantDB,
+    user: AuthenticatedUser,
+    start_date: Annotated[date | None, Query(description="Start date")] = None,
+    end_date: Annotated[date | None, Query(description="End date")] = None,
+    granularity: Annotated[str, Query(description="Granularity: day, week, month")] = "day",
+):
+    """
+    Get all analytics data in a single request.
+
+    This endpoint combines overview, funnel, trends, geography, risk, and SLA
+    data into one response for faster page loads.
+    """
+    if not start_date or not end_date:
+        start_date, end_date = get_default_dates(30)
+
+    if granularity not in ["day", "week", "month"]:
+        granularity = "day"
+
+    # Fetch all data in parallel using asyncio.gather
+    import asyncio
+
+    overview_task = analytics_service.get_overview_metrics(db, user.tenant_id, start_date, end_date)
+    funnel_task = analytics_service.get_verification_funnel(db, user.tenant_id, start_date, end_date)
+    trends_task = analytics_service.get_trends(db, user.tenant_id, start_date, end_date, granularity)
+    geography_task = analytics_service.get_geographic_distribution(db, user.tenant_id, start_date, end_date)
+    risk_task = analytics_service.get_risk_distribution(db, user.tenant_id, start_date, end_date)
+    sla_task = analytics_service.get_sla_performance(db, user.tenant_id, start_date, end_date)
+
+    # Run all queries concurrently
+    overview, funnel, trends, geography, risk, sla = await asyncio.gather(
+        overview_task,
+        funnel_task,
+        trends_task,
+        geography_task,
+        risk_task,
+        sla_task,
+    )
+
+    return {
+        "overview": OverviewMetrics(**overview),
+        "funnel": FunnelData(**funnel),
+        "trends": TrendsResponse(
+            granularity=granularity,
+            data=[TrendPoint(**point) for point in trends]
+        ),
+        "geography": GeographyResponse(
+            data=[GeographyItem(**item) for item in geography]
+        ),
+        "risk": RiskDistributionResponse(
+            data=[RiskBucket(**bucket) for bucket in risk]
+        ),
+        "sla": SLAPerformance(**sla),
+    }
+
+
 def get_default_dates(days: int = 30) -> tuple[date, date]:
     """Get default date range (last N days)."""
     end_date = date.today()

@@ -12,6 +12,21 @@ export class AnalyticsService {
   }
 
   /**
+   * Get all analytics data in a single request (faster page load)
+   * @param {Date} startDate - Start date
+   * @param {Date} endDate - End date
+   * @param {string} granularity - 'day', 'week', or 'month'
+   * @param {Object} options - Request options
+   */
+  async getAll(startDate, endDate, granularity = 'day', options = {}) {
+    const params = { granularity };
+    if (startDate) params.start_date = formatDate(startDate);
+    if (endDate) params.end_date = formatDate(endDate);
+    const qs = buildQueryString(params);
+    return this.client.get(`/all${qs}`, options);
+  }
+
+  /**
    * Get overview KPI metrics
    * @param {Date} startDate - Start date
    * @param {Date} endDate - End date

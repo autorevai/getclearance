@@ -7,12 +7,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import {
-  useOverview,
-  useFunnel,
-  useTrends,
-  useGeography,
-  useRiskDistribution,
-  useSlaPerformance,
+  useAllAnalytics,
   useExportAnalytics,
 } from '../../hooks';
 import OverviewCards from './OverviewCards';
@@ -55,30 +50,22 @@ export default function AnalyticsPage() {
     return { startDate: start, endDate: end };
   }, [datePreset, customDateRange]);
 
-  // Fetch all analytics data
-  const overview = useOverview(startDate, endDate);
-  const funnel = useFunnel(startDate, endDate);
-  const trends = useTrends(startDate, endDate, granularity);
-  const geography = useGeography(startDate, endDate);
-  const risk = useRiskDistribution(startDate, endDate);
-  const sla = useSlaPerformance(startDate, endDate);
+  // Fetch all analytics data in a single request (fast!)
+  const {
+    overview,
+    funnel,
+    trends,
+    geography,
+    risk,
+    sla,
+    isLoading,
+    refetch,
+  } = useAllAnalytics(startDate, endDate, granularity);
+
   const exportAnalytics = useExportAnalytics();
 
-  const isLoading =
-    overview.isLoading ||
-    funnel.isLoading ||
-    trends.isLoading ||
-    geography.isLoading ||
-    risk.isLoading ||
-    sla.isLoading;
-
   const handleRefresh = () => {
-    overview.refetch();
-    funnel.refetch();
-    trends.refetch();
-    geography.refetch();
-    risk.refetch();
-    sla.refetch();
+    refetch();
   };
 
   const handleExport = () => {
@@ -430,18 +417,18 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      <OverviewCards data={overview.data} isLoading={overview.isLoading} />
+      <OverviewCards data={overview} isLoading={isLoading} />
 
       <div className="charts-grid">
         <TrendsChart
-          data={trends.data}
-          isLoading={trends.isLoading}
+          data={trends}
+          isLoading={isLoading}
           granularity={granularity}
         />
-        <FunnelChart data={funnel.data} isLoading={funnel.isLoading} />
-        <GeoDistribution data={geography.data} isLoading={geography.isLoading} />
-        <RiskHistogram data={risk.data} isLoading={risk.isLoading} />
-        <SLAGauge data={sla.data} isLoading={sla.isLoading} />
+        <FunnelChart data={funnel} isLoading={isLoading} />
+        <GeoDistribution data={geography} isLoading={isLoading} />
+        <RiskHistogram data={risk} isLoading={isLoading} />
+        <SLAGauge data={sla} isLoading={isLoading} />
       </div>
     </div>
   );
