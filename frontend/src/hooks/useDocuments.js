@@ -11,7 +11,7 @@
 import { useMemo, useRef, useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth';
-import { DocumentsService, uploadToPresignedUrl, uploadDocumentFlow } from '../services';
+import { DocumentsService, uploadDocumentFlow } from '../services';
 import { applicantKeys } from './useApplicants';
 
 // Query key factory

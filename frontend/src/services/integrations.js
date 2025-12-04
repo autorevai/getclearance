@@ -8,7 +8,7 @@ import { ApiClient, buildQueryString } from './api';
 
 export class IntegrationsService {
   constructor(getToken) {
-    this.client = new ApiClient('/api/v1/integrations', getToken);
+    this.client = new ApiClient(getToken);
   }
 
   // API Keys
@@ -19,7 +19,7 @@ export class IntegrationsService {
    * @param {Object} options - Request options
    */
   async listApiKeys(options = {}) {
-    return this.client.get('/api-keys', options);
+    return this.client.get('/integrations/api-keys', options);
   }
 
   /**
@@ -28,7 +28,7 @@ export class IntegrationsService {
    * @param {Object} options - Request options
    */
   async createApiKey(data, options = {}) {
-    return this.client.post('/api-keys', data, options);
+    return this.client.post('/integrations/api-keys', data, options);
   }
 
   /**
@@ -37,7 +37,7 @@ export class IntegrationsService {
    * @param {Object} options - Request options
    */
   async revokeApiKey(keyId, options = {}) {
-    return this.client.delete(`/api-keys/${keyId}`, options);
+    return this.client.delete(`/integrations/api-keys/${keyId}`, options);
   }
 
   /**
@@ -46,7 +46,7 @@ export class IntegrationsService {
    * @param {Object} options - Request options
    */
   async rotateApiKey(keyId, options = {}) {
-    return this.client.post(`/api-keys/${keyId}/rotate`, {}, options);
+    return this.client.post(`/integrations/api-keys/${keyId}/rotate`, {}, options);
   }
 
   /**
@@ -54,7 +54,7 @@ export class IntegrationsService {
    * @param {Object} options - Request options
    */
   async getAvailablePermissions(options = {}) {
-    return this.client.get('/api-keys/permissions', options);
+    return this.client.get('/integrations/api-keys/permissions', options);
   }
 
   // Webhooks
@@ -65,7 +65,7 @@ export class IntegrationsService {
    * @param {Object} options - Request options
    */
   async listWebhooks(options = {}) {
-    return this.client.get('/webhooks', options);
+    return this.client.get('/integrations/webhooks', options);
   }
 
   /**
@@ -74,7 +74,7 @@ export class IntegrationsService {
    * @param {Object} options - Request options
    */
   async createWebhook(data, options = {}) {
-    return this.client.post('/webhooks', data, options);
+    return this.client.post('/integrations/webhooks', data, options);
   }
 
   /**
@@ -83,7 +83,7 @@ export class IntegrationsService {
    * @param {Object} options - Request options
    */
   async getWebhook(webhookId, options = {}) {
-    return this.client.get(`/webhooks/${webhookId}`, options);
+    return this.client.get(`/integrations/webhooks/${webhookId}`, options);
   }
 
   /**
@@ -93,7 +93,7 @@ export class IntegrationsService {
    * @param {Object} options - Request options
    */
   async updateWebhook(webhookId, data, options = {}) {
-    return this.client.put(`/webhooks/${webhookId}`, data, options);
+    return this.client.put(`/integrations/webhooks/${webhookId}`, data, options);
   }
 
   /**
@@ -102,7 +102,7 @@ export class IntegrationsService {
    * @param {Object} options - Request options
    */
   async deleteWebhook(webhookId, options = {}) {
-    return this.client.delete(`/webhooks/${webhookId}`, options);
+    return this.client.delete(`/integrations/webhooks/${webhookId}`, options);
   }
 
   /**
@@ -111,7 +111,7 @@ export class IntegrationsService {
    * @param {Object} options - Request options
    */
   async testWebhook(webhookId, options = {}) {
-    return this.client.post(`/webhooks/${webhookId}/test`, {}, options);
+    return this.client.post(`/integrations/webhooks/${webhookId}/test`, {}, options);
   }
 
   /**
@@ -122,7 +122,7 @@ export class IntegrationsService {
    */
   async getWebhookLogs(webhookId, params = {}, options = {}) {
     const qs = buildQueryString(params);
-    return this.client.get(`/webhooks/${webhookId}/logs${qs}`, options);
+    return this.client.get(`/integrations/webhooks/${webhookId}/logs${qs}`, options);
   }
 
   /**
@@ -130,6 +130,6 @@ export class IntegrationsService {
    * @param {Object} options - Request options
    */
   async getAvailableEvents(options = {}) {
-    return this.client.get('/webhooks/events', options);
+    return this.client.get('/integrations/webhooks/events', options);
   }
 }

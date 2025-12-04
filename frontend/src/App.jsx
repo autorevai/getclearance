@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth0 } from '@auth0/auth0-react';
 import AppShell from './components/AppShell';
 import Dashboard from './components/Dashboard';
@@ -31,7 +31,28 @@ import {
 // KYC Share components
 import { ReusableKYCPage as ApplicantKYCSharePage } from './components/kyc-share';
 
+// SDK components (public, no auth required)
+import SDKVerifyPage from './components/sdk/SDKVerifyPage';
+import SDKDemoPage from './components/sdk/SDKDemoPage';
+
 export default function App() {
+  const location = useLocation();
+
+  // SDK routes are public - render them without auth check
+  if (location.pathname.startsWith('/sdk/')) {
+    return (
+      <Routes>
+        <Route path="/sdk/verify" element={<SDKVerifyPage />} />
+        <Route path="/sdk/demo" element={<SDKDemoPage />} />
+      </Routes>
+    );
+  }
+
+  // All other routes require authentication
+  return <AuthenticatedApp />;
+}
+
+function AuthenticatedApp() {
   const { isAuthenticated, isLoading, user, logout } = useAuth0();
   const navigate = useNavigate();
   const location = useLocation();

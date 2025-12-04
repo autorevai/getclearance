@@ -1191,7 +1191,7 @@ export default function ApplicantsList() {
             <ChevronDown size={14} aria-hidden="true" />
           </button>
           {activeDropdown === 'status' && (
-            <div className="filter-dropdown" role="listbox" aria-label="Status options" aria-activedescendant={highlightedIndex >= 0 ? `status-option-${highlightedIndex}` : undefined}>
+            <div className="filter-dropdown" role="listbox" aria-label="Status options" aria-activedescendant={highlightedIndex >= 0 ? `status-option-${highlightedIndex}` : undefined} tabIndex={0}>
               <div
                 id="status-option-0"
                 className={`filter-option ${!filters.status ? 'active' : ''} ${highlightedIndex === 0 ? 'highlighted' : ''}`}
@@ -1241,7 +1241,7 @@ export default function ApplicantsList() {
             <ChevronDown size={14} aria-hidden="true" />
           </button>
           {activeDropdown === 'risk' && (
-            <div className="filter-dropdown" role="listbox" aria-label="Risk level options" aria-activedescendant={highlightedIndex >= 0 ? `risk-option-${highlightedIndex}` : undefined}>
+            <div className="filter-dropdown" role="listbox" aria-label="Risk level options" aria-activedescendant={highlightedIndex >= 0 ? `risk-option-${highlightedIndex}` : undefined} tabIndex={0}>
               <div
                 id="risk-option-0"
                 className={`filter-option ${!filters.risk_level ? 'active' : ''} ${highlightedIndex === 0 ? 'highlighted' : ''}`}

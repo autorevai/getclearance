@@ -8,7 +8,7 @@ import { ApiClient, buildQueryString } from './api';
 
 export class AnalyticsService {
   constructor(getToken) {
-    this.client = new ApiClient('/api/v1/analytics', getToken);
+    this.client = new ApiClient(getToken);
   }
 
   /**
@@ -23,7 +23,7 @@ export class AnalyticsService {
     if (startDate) params.start_date = formatDate(startDate);
     if (endDate) params.end_date = formatDate(endDate);
     const qs = buildQueryString(params);
-    return this.client.get(`/all${qs}`, options);
+    return this.client.get(`/analytics/all${qs}`, options);
   }
 
   /**
@@ -37,7 +37,7 @@ export class AnalyticsService {
     if (startDate) params.start_date = formatDate(startDate);
     if (endDate) params.end_date = formatDate(endDate);
     const qs = buildQueryString(params);
-    return this.client.get(`/overview${qs}`, options);
+    return this.client.get(`/analytics/overview${qs}`, options);
   }
 
   /**
@@ -51,7 +51,7 @@ export class AnalyticsService {
     if (startDate) params.start_date = formatDate(startDate);
     if (endDate) params.end_date = formatDate(endDate);
     const qs = buildQueryString(params);
-    return this.client.get(`/funnel${qs}`, options);
+    return this.client.get(`/analytics/funnel${qs}`, options);
   }
 
   /**
@@ -66,7 +66,7 @@ export class AnalyticsService {
     if (startDate) params.start_date = formatDate(startDate);
     if (endDate) params.end_date = formatDate(endDate);
     const qs = buildQueryString(params);
-    return this.client.get(`/trends${qs}`, options);
+    return this.client.get(`/analytics/trends${qs}`, options);
   }
 
   /**
@@ -80,7 +80,7 @@ export class AnalyticsService {
     if (startDate) params.start_date = formatDate(startDate);
     if (endDate) params.end_date = formatDate(endDate);
     const qs = buildQueryString(params);
-    return this.client.get(`/geography${qs}`, options);
+    return this.client.get(`/analytics/geography${qs}`, options);
   }
 
   /**
@@ -94,7 +94,7 @@ export class AnalyticsService {
     if (startDate) params.start_date = formatDate(startDate);
     if (endDate) params.end_date = formatDate(endDate);
     const qs = buildQueryString(params);
-    return this.client.get(`/risk${qs}`, options);
+    return this.client.get(`/analytics/risk${qs}`, options);
   }
 
   /**
@@ -108,7 +108,7 @@ export class AnalyticsService {
     if (startDate) params.start_date = formatDate(startDate);
     if (endDate) params.end_date = formatDate(endDate);
     const qs = buildQueryString(params);
-    return this.client.get(`/sla${qs}`, options);
+    return this.client.get(`/analytics/sla${qs}`, options);
   }
 
   /**
@@ -126,14 +126,14 @@ export class AnalyticsService {
 
     if (format === 'csv') {
       // For CSV, return raw text
-      const response = await this.client.get(`/export${qs}`, {
+      const response = await this.client.get(`/analytics/export${qs}`, {
         ...options,
         rawResponse: true,
       });
       return response;
     }
 
-    return this.client.get(`/export${qs}`, options);
+    return this.client.get(`/analytics/export${qs}`, options);
   }
 }
 

@@ -22,7 +22,6 @@ import {
   AlertCircle,
   CheckCircle2,
   Loader2,
-  Camera,
   RotateCcw,
   Plus,
   Trash2
@@ -231,9 +230,6 @@ export default function DocumentUpload({
       setIsValidating(false);
     }
   }, [frontPreview, backPreview]);
-
-  // Legacy single-file getter for compatibility
-  const selectedFile = frontFile;
 
   // Handle file input change
   const handleInputChange = useCallback((e, side = 'front') => {
